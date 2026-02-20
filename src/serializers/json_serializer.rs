@@ -1,13 +1,14 @@
-use crate::{errors::{json_error::{JsonError, JsonWriteError}, MawuError}, mawu_value::MawuValue, utils::make_whitespace};
+use athena::{XffValue, Number};
+use crate::{errors::{json_error::{JsonError, JsonWriteError}, MawuError}, utils::make_whitespace};
 
-pub fn serialize_json(value: MawuValue, spaces: u8, depth: u16) -> Result<String, MawuError> {
+pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String, MawuError> {
     let mut out: String = Default::default();
     let current_whitespace = (spaces as usize).saturating_mul(depth as usize);
     let next_depth = depth.saturating_add(1);
     let next_whitespace = (spaces as usize).saturating_mul(next_depth as usize);
     let is_pretty = spaces > 0;
     match value {
-        MawuValue::Object(o) => {
+        XffValue::Object(o) => {
             if is_pretty {
                 out.push('\n');
             }
@@ -15,12 +16,12 @@ pub fn serialize_json(value: MawuValue, spaces: u8, depth: u16) -> Result<String
             if is_pretty {
                 out.push('\n');
             }
-            for (key, value) in o {
+            for (key, value) in o.iter() {
                 out.push_str(format!("{}\"{}\":", make_whitespace(next_whitespace), key).as_str());
                 if is_pretty {
                     out.push(' ');
                 }
-                out.push_str(&serialize_json(value, spaces, next_depth)?.trim_start());
+                out.push_str(&serialize_json(value.clone(), spaces, next_depth)?.trim_start());
                 out.push(',');
                 if is_pretty {
                     out.push('\n');
@@ -41,7 +42,7 @@ pub fn serialize_json(value: MawuValue, spaces: u8, depth: u16) -> Result<String
             }
             
         },
-        MawuValue::Array(a) => {
+        XffValue::Array(a) => {
             if is_pretty {
                 out.push('\n');
             }
@@ -50,8 +51,8 @@ pub fn serialize_json(value: MawuValue, spaces: u8, depth: u16) -> Result<String
                 out.push('\n');
                 out.push_str(format!("{} ", make_whitespace(next_whitespace)).as_str());
             }
-            for v in a {
-                out.push_str(&serialize_json(v, spaces, next_depth)?);
+            for v in a.iter() {
+                out.push_str(&serialize_json(v.clone(), spaces, next_depth)?);
                 out.push(',');
                 if is_pretty {
                     out.push(' ');
@@ -71,36 +72,42 @@ pub fn serialize_json(value: MawuValue, spaces: u8, depth: u16) -> Result<String
                 out.push(']');
             }
         },
-        MawuValue::None => {
+        XffValue::Null => {
             out.push_str("null");
         },
-        MawuValue::Bool(b) => {
+        XffValue::Boolean(b) => {
             out.push_str(format!("{}", b).as_str());
         },
-        MawuValue::Uint(u) => {
-            out.push_str(format!("{}", u).as_str());
-        },
-        MawuValue::Int(i) => {
-            out.push_str(format!("{}", i).as_str());
-        },
-        MawuValue::Float(f) => {
-            // I don't know if this is correct, never worked or heard of fract() until googling
-            // right now
-            if f.fract() == 0.0 || f.fract() == -0.0 {
-                out.push_str(&format!("{}{}.0", make_whitespace(spaces), f));
-            } else {
-               out.push_str(&format!("{}{}", make_whitespace(spaces), f));
+        XffValue::Number(n) => {
+            match n {
+                Number::Unsigned(u) => out.push_str(format!("{}", u).as_str()),
+                Number::Integer(i) => out.push_str(format!("{}", i).as_str()),
+                Number::Float(f) => {
+                    if f.fract() == 0.0 || f.fract() == -0.0 {
+                        out.push_str(&format!("{}{}.0", make_whitespace(spaces), f));
+                    } else {
+                        out.push_str(&format!("{}{}", make_whitespace(spaces), f));
+                    }
+                }
             }
         },
-        MawuValue::String(s) => {
+        XffValue::String(s) => {
             out.push_str(serialize_string_to_json(&s).as_str());
         },
-        MawuValue::CSVObject(_) => {
-            Err(MawuError::JsonError(JsonError::WriteError(JsonWriteError::NotJSONType("CSVObject".to_string()))))?
+        XffValue::Data(d) => {
+            // Data is not standard JSON, but we can serialize it as an array of bytes
+            out.push('[');
+            for (i, byte) in d.iter().enumerate() {
+                if i != 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&format!("{}", byte));
+            }
+            out.push(']');
         },
-        MawuValue::CSVArray(_) => {
-            Err(MawuError::JsonError(JsonError::WriteError(JsonWriteError::NotJSONType("CSVArray".to_string()))))?
-        },
+        XffValue::CommandCharacter(_) | XffValue::ArrayCmdChar(_) => {
+             Err(MawuError::JsonError(JsonError::WriteError(JsonWriteError::NotJSONType("CommandCharacter".to_string()))))?
+        }
     };
     if depth == 0 {
         out = out.trim_start().to_string();
