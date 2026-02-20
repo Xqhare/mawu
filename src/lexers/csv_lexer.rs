@@ -1,4 +1,5 @@
 use std::{char, collections::{HashMap, VecDeque}};
+use athena::XffValue;
 
 use crate::{
     errors::{
@@ -12,9 +13,9 @@ use crate::{
 pub fn headed(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
     let (head, left_content) = make_head(file_contents)?;
     let body = parse_csv_body(left_content, head.len())?;
-    let mut out: Vec<HashMap<String, MawuValue>> = Default::default();
+    let mut out: Vec<HashMap<String, XffValue>> = Default::default();
     for entry in body {
-        let mut tmp_bind: HashMap<String, MawuValue> = Default::default();
+        let mut tmp_bind: HashMap<String, XffValue> = Default::default();
         if entry.len() == head.len() {
             for (index, value) in entry.iter().enumerate() {
                 tmp_bind.insert(head[index].clone(), value.clone());
@@ -35,8 +36,8 @@ pub fn headless(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
     body.insert(
         0,
         head.into_iter()
-            .map(|s| MawuValue::from(s))
-            .collect::<Vec<MawuValue>>(),
+            .map(|s| XffValue::from(s))
+            .collect::<Vec<XffValue>>(),
     );
     Ok(MawuValue::CSVArray(body))
 }
@@ -44,14 +45,14 @@ pub fn headless(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
 fn parse_csv_body(
     mut csv_body: VecDeque<char>,
     head_length: usize,
-) -> Result<Vec<Vec<MawuValue>>, MawuError> {
-    let mut out: Vec<Vec<MawuValue>> = Default::default();
+) -> Result<Vec<Vec<XffValue>>, MawuError> {
+    let mut out: Vec<Vec<XffValue>> = Default::default();
     let mut row_data: Vec<String> = Default::default();
     let mut last_char = None;
     while csv_body.front().is_some() {
         if let Some(h) = csv_body.pop_front() {
             if h == '\n' && csv_body.is_empty() {
-                out.push(row_data.iter().map(|s| MawuValue::from(s)).collect());
+                out.push(row_data.iter().map(|s| XffValue::from(s.clone())).collect());
                 row_data = Default::default();
                 break;
             }
@@ -80,7 +81,7 @@ fn parse_csv_body(
                 if is_next_newline {
                     let _ = csv_body.pop_front();
                 }
-                out.push(row_data.iter().map(|s| MawuValue::from(s)).collect());
+                out.push(row_data.iter().map(|s| XffValue::from(s.clone())).collect());
                 // assignment is only overwritten before being read if the very first character IS a newline and thus, probably, maybe, fine.
                 row_data = Default::default();
             }  else if h == ',' {
@@ -136,7 +137,7 @@ fn parse_csv_body(
         }
     }
     if !row_data.is_empty() {
-        out.push(row_data.iter().map(|s| MawuValue::from(s)).collect());
+        out.push(row_data.iter().map(|s| XffValue::from(s.clone())).collect());
     }
     Ok(out)
 }
