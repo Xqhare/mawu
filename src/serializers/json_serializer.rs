@@ -21,7 +21,7 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
                 if is_pretty {
                     out.push(' ');
                 }
-                out.push_str(&serialize_json(value.clone(), spaces, next_depth)?.trim_start());
+                out.push_str(serialize_json(value.clone(), spaces, next_depth)?.trim_start());
                 out.push(',');
                 if is_pretty {
                     out.push('\n');
@@ -97,7 +97,7 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
         XffValue::Data(d) => {
             // Data is not standard JSON, but we can serialize it as an array of bytes
             out.push('[');
-            for (i, byte) in d.iter().enumerate() {
+            for (i, byte) in d.data.iter().enumerate() {
                 if i != 0 {
                     out.push_str(", ");
                 }
@@ -121,9 +121,9 @@ fn serialize_string_to_json(value: &str) -> String {
         if c == '"' {
             tmp_bind.push_str("\\\"");
         } else if c == '\\' {
-            tmp_bind.push_str("\\");
+            tmp_bind.push('\\');
             if index + 1 == value.len() {
-                tmp_bind.push_str("\\");
+                tmp_bind.push('\\');
             }
         } else if c == '/' {
             tmp_bind.push('\\');

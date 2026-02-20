@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(read_json1.into_object().unwrap().get("key2").unwrap().into_number().unwrap().into_usize().unwrap(), 2);
 
         assert!(read_json2.is_array());
-        assert_eq!(read_json2.len(), 3);
+        assert_eq!(read_json2.into_array().unwrap().len(), 3);
         assert_eq!(read_json2.into_array().unwrap().get(0).unwrap().into_string().unwrap(), "a");
 
         std::fs::remove_file(path_to_file1).unwrap();

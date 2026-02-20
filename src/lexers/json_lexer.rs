@@ -17,16 +17,16 @@ use crate::{
 };
 
 pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> {
-    if file_contents.len() > 0 {
+    if !file_contents.is_empty() {
         let contents_store: Rc<Mutex<VecDeque<char>>> = Rc::new(Mutex::new(file_contents));
-        let contents = contents_store.try_lock();
-        if contents.is_err() {
-            return Err(MawuError::InternalError(
-                MawuInternalError::UnableToLockMasterMutex,
-            ));
+        let res = if let Ok(mut contents) = contents_store.try_lock() {
+            json_value_lexer(&mut contents)
         } else {
-            json_value_lexer(&mut contents.unwrap())
-        }
+            Err(MawuError::InternalError(
+                MawuInternalError::UnableToLockMasterMutex,
+            ))
+        };
+        res
     } else {
         Ok(XffValue::default())
     }
@@ -191,14 +191,12 @@ fn json_string_lexer(
 ) -> Result<XffValue, MawuError> {
     let mut string: String = Default::default();
     loop {
-        let this_char = file_contents.pop_front();
-        if this_char.is_some() {
-            let character = this_char.unwrap();
+        if let Some(character) = file_contents.pop_front() {
             let next_char = file_contents.front();
             // End of string
             // Or part checks for end of file
             if character == '\"' && is_json_string_terminator_token(next_char)
-                || file_contents.len() == 0
+                || file_contents.is_empty()
                 || file_contents.front() == Some(&'\n') && file_contents.len() <= 1
             {
                 return Ok(XffValue::String(string));
@@ -252,17 +250,9 @@ fn json_string_lexer(
                                 &format!("{}{}{}{}", hex1, hex2, hex3, hex4),
                                 &next_codepoint,
                             );
-                            if tmp.is_err() {
-                                Err(MawuError::JsonError(JsonError::ParseError(
-                                    JsonParseError::InvalidEscapeSequence(format!(
-                                        "{}{}",
-                                        character, next_char
-                                    )),
-                                )))?;
-                            } else {
+                            if let Ok((out, codepointused)) = tmp {
                                 // next codepoint was used
                                 // so we pop it off, including the skipped `\u`
-                                let (out, codepointused) = tmp.unwrap();
                                 if codepointused {
                                     let _ = file_contents.pop_front();
                                     let _ = file_contents.pop_front();
@@ -272,6 +262,13 @@ fn json_string_lexer(
                                     let _ = file_contents.pop_front();
                                 }
                                 string.push_str(&out);
+                            } else {
+                                return Err(MawuError::JsonError(JsonError::ParseError(
+                                    JsonParseError::InvalidEscapeSequence(format!(
+                                        "{}{}",
+                                        character, next_char
+                                    )),
+                                )));
                             }
                             continue;
                         }
@@ -323,12 +320,12 @@ fn json_number_lexer(
     first_digit: Option<char>,
 ) -> Result<XffValue, MawuError> {
     let mut out: String = Default::default();
-    if first_digit.is_some() {
-        out.push(first_digit.unwrap());
+    if let Some(digit) = first_digit {
+        out.push(digit);
     } else {
         out.push('-');
     }
-    while file_contents.len() > 0 {
+    while !file_contents.is_empty() {
         let this_char = file_contents.pop_front().unwrap();
         if is_whitespace(&this_char) {
             continue;
@@ -359,6 +356,9 @@ fn json_number_lexer(
     // Parse the number string into XffValue
     if out.contains('.') || out.contains('e') || out.contains('E') {
         if let Ok(f) = out.parse::<f64>() {
+            if f.is_infinite() || f.is_nan() {
+                return Ok(XffValue::Null);
+            }
             return Ok(XffValue::Number(Number::Float(f)));
         }
     } else if let Ok(u) = out.parse::<u64>() {
@@ -451,14 +451,14 @@ fn number_lexer() {
     assert_eq!(small_neg_res, XffValue::from(-123));
     let small_pos = VecDeque::from(vec!['1', '2', '3']);
     let small_pos_res = json_lexer(small_pos).unwrap();
-    assert_eq!(small_pos_res, XffValue::from(123));
+    assert_eq!(small_pos_res, XffValue::from(123usize));
 
     let large_neg = VecDeque::from(vec!['-', '9', '8', '7', '6', '5', '4', '3', '2', '1']);
     let large_neg_res = json_lexer(large_neg).unwrap();
-    assert_eq!(large_neg_res, XffValue::from(-987654321));
+    assert_eq!(large_neg_res, XffValue::from(-987654321isize));
     let large_pos = VecDeque::from(vec!['9', '8', '7', '6', '5', '4', '3', '2', '1']);
     let large_pos_res = json_lexer(large_pos).unwrap();
-    assert_eq!(large_pos_res, XffValue::from(987654321));
+    assert_eq!(large_pos_res, XffValue::from(987654321usize));
 
     let small_float = VecDeque::from(vec!['1', '.', '2', '3']);
     let easy_float_res = json_lexer(small_float).unwrap();

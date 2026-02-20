@@ -43,18 +43,12 @@ impl MawuValue {
 
     /// Check if the value is an `CSV-Object`
     pub fn is_csv_object(&self) -> bool {
-        match self {
-            MawuValue::CSVObject(_) => true,
-            _ => false,
-        }
+        matches!(self, MawuValue::CSVObject(_))
     }
 
     /// Check if the value is an `CSV-Array`
     pub fn is_csv_array(&self) -> bool {
-        match self {
-            MawuValue::CSVArray(_) => true,
-            _ => false,
-        }
+        matches!(self, MawuValue::CSVArray(_))
     }
 
     /// Returns `Some(&Vec<HashMap<String, XffValue>>)` if the value is an `CSV-Object`, `None` otherwise.

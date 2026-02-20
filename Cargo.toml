@@ -5,6 +5,9 @@ version = "0.6.2"
 edition = "2021"
 rust-version = "1.93.0"
 
+[dependencies]
+athena = { git = "https://github.com/Xqhare/athena"}
+
 [dev-dependencies]
 json = "0.12.4"
 pretty_assertions = "1.4.0"

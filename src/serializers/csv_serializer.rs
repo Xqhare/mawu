@@ -28,11 +28,12 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
         XffValue::Boolean(b) => Ok(format!("{}{}", make_whitespace(spaces), b)),
         XffValue::Array(a) => {
             let mut out = format!("{}[", make_whitespace(spaces));
-            for v in a.iter() {
+            for (i, v) in a.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
                 out.push_str(&serialize_csv_value(v.clone(), spaces)?);
-                out.push(',');
             }
-            out = out.trim_end_matches(',').to_string();
             out.push(']');
             Ok(out)
         }
@@ -62,24 +63,25 @@ pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, Mawu
     for map in maps {
         let mut row: String = Default::default();
         if !head_created {
-            for (key, _) in &map {
+            for (i, (key, _)) in map.iter().enumerate() {
                 keys.push(key.clone());
+                if i != 0 {
+                    head.push(',');
+                }
                 head.push_str(make_whitespace(spaces).as_str());
                 head.push_str(key);
-                head.push(',');
             }
             head_created = true;
         }
-        for key in &keys {
+        for (i, key) in keys.iter().enumerate() {
+            if i != 0 {
+                row.push(',');
+            }
             let get_val = map.get(key).unwrap();
             row.push_str(&serialize_csv_value(get_val.clone(), spaces)?);
-            row.push(',');
         }
-        row = row.trim_end_matches(',').to_string();
         body.push(row);
     }
-    head = head.trim_end_matches(',').to_string();
-    head = head.trim_start().to_string();
     let mut out = format!("{}\n", head);
     out.push_str(body.join("\n").as_str());
     Ok(out)
@@ -94,15 +96,18 @@ pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, Ma
     };
 
     let mut out = format!("{}", make_whitespace(spaces));
-    for v in rows {
-        let mut row = String::new();
-        for i in v {
-            row.push_str(&serialize_csv_value(i, spaces)?);
-            row.push(',');
+    for (row_idx, v) in rows.iter().enumerate() {
+        if row_idx != 0 {
+            out.push('\n');
         }
-        row = row.trim_end_matches(',').to_string();
+        let mut row = String::new();
+        for (i, val) in v.iter().enumerate() {
+            if i != 0 {
+                row.push(',');
+            }
+            row.push_str(&serialize_csv_value(val.clone(), spaces)?);
+        }
         out.push_str(&row);
-        out.push('\n');
     }
     Ok(out)
 }
