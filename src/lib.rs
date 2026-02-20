@@ -5,16 +5,76 @@
 //!
 //! Mawu is a zero dependency library and supports 64bit systems only.
 //!
-//! A little technical note: While Mawu uses the same return value types for both CSV and JSON, the parsing is done by two different lexers (or implementors as the standards like to call it) bundled together into one library. If you only use the JSON functionality, this results in a bloat of almost 13kb!
-//!
 //! ***This is a hobbyist repo badly reinventing the wheel and not ready for production use.*** 
 //!
-//! The performance of Mawu does leave room for improvement.
-//! Talking about the parsing alone, the JSON parser manages about 84mb in 10 to 11 seconds, while the CSV parser manages about 84mb in 14 to 15 seconds. In comparison,
-//! an actual parser takes about 2sec to open the same file.
+//! ## Features
+//! - Simple
+//! - Type aware
+//! - Supports both CSV and JSON
+//! - Reading and writing
+//! - Write pretty with custom spacing
+//! - Supports CSV files with or without header
+//! - Supports missing or not provided values
+//! - Fully documented
+//! - Tries to stay as close to the rfc4180, rfc8259 and ECMA-404 standard as possible for maximum interoperability
+//! - Actually written by a human
 //!
-//! With about 1k lines, this README contains everything you never wanted to know about Mawu, but writing good documentation is never easy.
-//! So I hope everything below makes sense to you.
+//! ## Using Mawu
+//!
+//! ```rust
+//! use mawu::*;
+//! use athena::XffValue;
+//!
+//! // most of the time you will ever only need
+//! use mawu::read::json;
+//! // or one of these two
+//! use mawu::read::{csv_headed, csv_headless};
+//!
+//! // JSON returns an XffValue directly
+//! # let path_to_file = "data/json/json-test-data/simple-object.json";
+//! # if std::path::Path::new(path_to_file).exists() {
+//! let xff_value = json(path_to_file).unwrap();
+//! if xff_value.is_object() {
+//!     for (key, value) in xff_value.into_object().unwrap().iter() {
+//!         println!("{}: {}", key, value);
+//!     }
+//! }
+//! # }
+//!
+//! // CSV returns a MawuValue
+//! # let path_to_csv = "data/csv/csv-test-data/headed/my-own-random-data/all-types.csv";
+//! # if std::path::Path::new(path_to_csv).exists() {
+//! let csv_value = csv_headed(path_to_csv).unwrap();
+//! if csv_value.is_csv_object() {
+//!     for row in csv_value.as_csv_object().unwrap() {
+//!         for (key, value) in row {
+//!             println!("{}: {}", key, value);
+//!         }
+//!     }
+//! }
+//! # }
+//!
+//! // to save to a file use write or write_pretty
+//! use mawu::{write, write_pretty, MawuContents};
+//!
+//! let path_to_file = "example-file.json";
+//! let xff_val = XffValue::from(vec![1, 2, 3]);
+//! // Use MawuContents::Json for XffValue
+//! write(path_to_file, MawuContents::Json(xff_val)).unwrap();
+//! # std::fs::remove_file(path_to_file).unwrap();
+//! ```
+//!
+//! ## `MawuValue`
+//! In the new version of Mawu, `MawuValue` is used exclusively for CSV data.
+//! It serves as a container for either a headed CSV (`CSVObject`) or a headless CSV (`CSVArray`),
+//! wrapping `athena::XffValue` for the individual fields.
+//!
+//! For JSON data, Mawu now returns `athena::XffValue` directly, providing a more direct and 
+//! standardized way to interact with JSON structures.
+//!
+//! ## `MawuContents`
+//! To maintain a unified writing API, the `MawuContents` enum is used to wrap either 
+//! `XffValue` (for JSON) or `MawuValue` (for CSV) when calling `write` or `write_pretty`.
 //!
 
 /// Contains all the errors that can be returned by Mawu
