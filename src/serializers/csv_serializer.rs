@@ -38,8 +38,17 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
             Ok(out)
         }
         XffValue::Null => Ok(String::new()),
+        XffValue::DateTime(dt) => Ok(format!("{}{}", make_whitespace(spaces), dt)),
+        XffValue::Duration(d) => Ok(format!("{}{}", make_whitespace(spaces), d)),
+        XffValue::Uuid(u) => Ok(format!("{}{}", make_whitespace(spaces), u)),
+        XffValue::NaN => Ok(format!("{}NaN", make_whitespace(spaces))),
+        XffValue::Infinity => Ok(format!("{}Infinity", make_whitespace(spaces))),
+        XffValue::NegInfinity => Ok(format!("{}-Infinity", make_whitespace(spaces))),
         // All other types are not allowed or serialized as something else
         XffValue::Object(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Object".to_string())))),
+        XffValue::OrderedObject(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("OrderedObject".to_string())))),
+        XffValue::Table(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Table".to_string())))),
+        XffValue::Metadata(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Metadata".to_string())))),
         XffValue::Data(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Data".to_string())))),
         XffValue::CommandCharacter(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("CommandCharacter".to_string())))),
         XffValue::ArrayCmdChar(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("ArrayCmdChar".to_string())))),

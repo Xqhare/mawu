@@ -94,6 +94,60 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
         XffValue::String(s) => {
             out.push_str(serialize_string_to_json(&s).as_str());
         },
+        XffValue::OrderedObject(o) => {
+            if is_pretty {
+                out.push('\n');
+            }
+            out.push_str(format!("{}{{", make_whitespace(current_whitespace)).as_str());
+            if is_pretty {
+                out.push('\n');
+            }
+            for (key, value) in o.iter() {
+                out.push_str(format!("{}\"{}\":", make_whitespace(next_whitespace), key).as_str());
+                if is_pretty {
+                    out.push(' ');
+                }
+                out.push_str(serialize_json(value.clone(), spaces, next_depth)?.trim_start());
+                out.push(',');
+                if is_pretty {
+                    out.push('\n');
+                }
+            }
+            out = {
+                if is_pretty {
+                    out.trim_end_matches(",\n").to_string()
+                } else {
+                    out.trim_end_matches(',').to_string()
+                }
+            };
+            if is_pretty {
+                out.push('\n');
+                out.push_str(format!("{}}}", make_whitespace(current_whitespace)).as_str());
+            } else {
+                out.push('}');
+            }
+        },
+        XffValue::Table(t) => {
+             let mut map = std::collections::BTreeMap::new();
+             map.insert("columns".to_string(), XffValue::from(t.columns.clone()));
+             map.insert("rows".to_string(), XffValue::from(t.rows.clone()));
+             out.push_str(&serialize_json(XffValue::Object(athena::Object { map }), spaces, depth)?);
+        },
+        XffValue::Metadata(m) => {
+            out.push_str(&serialize_json(XffValue::Object(m.map), spaces, depth)?);
+        },
+        XffValue::DateTime(dt) => {
+            out.push_str(&format!("{}", dt));
+        },
+        XffValue::Duration(d) => {
+            out.push_str(&format!("{}", d));
+        },
+        XffValue::Uuid(u) => {
+            out.push_str(&format!("\"{}\"", u));
+        },
+        XffValue::NaN | XffValue::Infinity | XffValue::NegInfinity => {
+            out.push_str("null");
+        },
         XffValue::Data(d) => {
             // Data is not standard JSON, but we can serialize it as an array of bytes
             out.push('[');
