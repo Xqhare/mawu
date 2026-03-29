@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use athena::XffValue;
 
 #[derive(Clone, Debug, PartialEq)]
-/// MawuValue wraps CSV data types supported by Mawu.
+/// `MawuValue` wraps CSV data types supported by Mawu.
 /// Using the `XffValue` from `athena` for the actual data.
 pub enum MawuValue {
     /// Only used to hold a headed CSV file
@@ -15,8 +15,8 @@ pub enum MawuValue {
 impl fmt::Display for MawuValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            MawuValue::CSVObject(ref v) => write!(f, "{:?}", v),
-            MawuValue::CSVArray(ref v) => write!(f, "{:?}", v),
+            MawuValue::CSVObject(ref v) => write!(f, "{v:?}"),
+            MawuValue::CSVArray(ref v) => write!(f, "{v:?}"),
         }
     }
 }
@@ -28,6 +28,7 @@ impl MawuValue {
     /// empty.
     ///
     /// To unwrap, use `.to_csv_object()`
+    #[must_use] 
     pub fn new_csv_object() -> MawuValue {
         MawuValue::CSVObject(vec![HashMap::new()])
     }
@@ -37,21 +38,25 @@ impl MawuValue {
     /// Creates a new `MawuValue::CSVArray` with the first vector and vector inside initialized and empty.
     ///
     /// To unwrap, use `.to_csv_array()`
+    #[must_use] 
     pub fn new_csv_array() -> MawuValue {
         MawuValue::CSVArray(vec![Vec::new()])
     }
 
     /// Check if the value is an `CSV-Object`
+    #[must_use] 
     pub fn is_csv_object(&self) -> bool {
         matches!(self, MawuValue::CSVObject(_))
     }
 
     /// Check if the value is an `CSV-Array`
+    #[must_use] 
     pub fn is_csv_array(&self) -> bool {
         matches!(self, MawuValue::CSVArray(_))
     }
 
     /// Returns `Some(&Vec<HashMap<String, XffValue>>)` if the value is an `CSV-Object`, `None` otherwise.
+    #[must_use] 
     pub fn as_csv_object(&self) -> Option<&Vec<HashMap<String, XffValue>>> {
         match self {
             MawuValue::CSVObject(v) => Some(v),
@@ -60,6 +65,7 @@ impl MawuValue {
     }
 
     /// Returns `Some(&Vec<Vec<XffValue>>)` if the value is an `CSV-Array`, `None` otherwise.
+    #[must_use] 
     pub fn as_csv_array(&self) -> Option<&Vec<Vec<XffValue>>> {
         match self {
             MawuValue::CSVArray(v) => Some(v),
@@ -69,6 +75,7 @@ impl MawuValue {
 
     /// Returns a owned copy of the value as an `Vec<HashMap<String, XffValue>>`.
     /// Returns `None` if the value is not an `CSV-Object`.
+    #[must_use] 
     pub fn to_csv_object(&self) -> Option<Vec<HashMap<String, XffValue>>> {
         match self {
             MawuValue::CSVObject(v) => Some(v.clone()),
@@ -78,6 +85,7 @@ impl MawuValue {
 
     /// Returns a owned copy of the value as an `Vec<Vec<XffValue>>`.
     /// Returns `None` if the value is not a `CSV-Array`.
+    #[must_use] 
     pub fn to_csv_array(&self) -> Option<Vec<Vec<XffValue>>> {
         match self {
             MawuValue::CSVArray(v) => Some(v.clone()),
@@ -94,6 +102,7 @@ impl MawuValue {
     }
 
     /// Returns the length of the value
+    #[must_use] 
     pub fn len(&self) -> usize {
         match self {
             MawuValue::CSVObject(v) => v.len(),
@@ -102,6 +111,7 @@ impl MawuValue {
     }
 
     /// Convenience method to check if the value is empty.
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         match self {
             MawuValue::CSVObject(v) => v.is_empty(),

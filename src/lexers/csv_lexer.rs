@@ -22,9 +22,9 @@ pub fn headed(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
             }
         } else {
             return Err(MawuError::CsvError(CsvError::ParseError(
-                CsvParseError::ExtraValue(format!("{:?}", entry)),
+                CsvParseError::ExtraValue(format!("{entry:?}")),
             )));
-        };
+        }
         out.push(tmp_bind);
     }
     Ok(MawuValue::CSVObject(out))
@@ -67,7 +67,7 @@ fn parse_csv_body(
                         if is_newline(&h) {
                             if (last_char.is_none() || last_char.unwrap() == ',' || is_newline(&last_char.unwrap()) || head_length > row_data.len()) && head_length > row_data.len() {
                                 for _ in 0..(head_length - row_data.len()) {
-                                    row_data.push(String::from(""));
+                                    row_data.push(String::new());
                                 }
                             }
                             if is_next_newline {
@@ -81,10 +81,10 @@ fn parse_csv_body(
                             if is_next_newline && head_length > row_data.len() {
                                 // push as many nulls as needed to fill in the missing data
                                 for _ in 0..(head_length - row_data.len()) {
-                                    row_data.push(String::from(""));
+                                    row_data.push(String::new());
                                 }
                             } else if last_char.is_none() || last_char.unwrap() == ',' || is_newline(&last_char.unwrap()) {
-                                row_data.push(String::from(""));
+                                row_data.push(String::new());
                             }
                         } else if h == '\"' {
                             let mut value: String = Default::default();
@@ -125,7 +125,7 @@ fn parse_csv_body(
                 }
                 row_data.push(value);
             }
-            last_char = Some(h)
+            last_char = Some(h);
         }
     }
     if !row_data.is_empty() {
@@ -178,7 +178,7 @@ fn make_head(
                         while file_contents.front() != Some(&',')
                             && !is_newline(file_contents.front().ok_or(
                                 MawuError::CsvError(CsvError::ParseError(
-                                    CsvParseError::UnrecognizedHeader("".to_string()),
+                                    CsvParseError::UnrecognizedHeader(String::new()),
                                 ))
                             )?)
                         {
@@ -195,12 +195,12 @@ fn make_head(
         } else {
             let t = file_contents
                 .iter()
-                .map(|s| format!("{}", s))
+                .map(|s| format!("{s}"))
                 .collect::<String>();
             return Err(MawuError::CsvError(CsvError::ParseError(
                 CsvParseError::UnrecognizedHeader(t),
             )));
-        };
+        }
     }
     if file_contents.front() == Some(&'\n') {
         let _ = file_contents.pop_front();

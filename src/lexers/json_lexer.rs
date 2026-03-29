@@ -17,7 +17,9 @@ use crate::{
 };
 
 pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> {
-    if !file_contents.is_empty() {
+    if file_contents.is_empty() {
+        Ok(XffValue::default())
+    } else {
         let contents_store: Rc<Mutex<VecDeque<char>>> = Rc::new(Mutex::new(file_contents));
         let res = if let Ok(mut contents) = contents_store.try_lock() {
             json_value_lexer(&mut contents)
@@ -27,8 +29,6 @@ pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> 
             ))
         };
         res
-    } else {
-        Ok(XffValue::default())
     }
 }
 
@@ -104,18 +104,17 @@ fn json_value_lexer(
             // number
             return json_number_lexer(
                 file_contents,
-                if this_char != '-' {
-                    Some(this_char)
-                } else {
+                if this_char == '-' {
                     None
+                } else {
+                    Some(this_char)
                 },
             );
-        } else {
-            // Invalid json grammar
-            return Err(MawuError::JsonError(JsonError::ParseError(
-                JsonParseError::InvalidCharacter(this_char.to_string()),
-            )));
         }
+        // Invalid json grammar
+        return Err(MawuError::JsonError(JsonError::ParseError(
+            JsonParseError::InvalidCharacter(this_char.to_string()),
+        )));
     }
     Err(MawuError::JsonError(JsonError::ParseError(
         JsonParseError::UnexpectedEndOfFile,
@@ -212,13 +211,12 @@ fn json_string_lexer(
 
                     if is_json_string_terminator_token(file_contents.front()) {
                         return Ok(XffValue::String(string));
-                    } else {
-                        return Err(MawuError::JsonError(JsonError::ParseError(
-                            JsonParseError::UnexpectedCharacter(
-                                file_contents.front().unwrap().to_string(),
-                            ),
-                        )));
                     }
+                    return Err(MawuError::JsonError(JsonError::ParseError(
+                        JsonParseError::UnexpectedCharacter(
+                            file_contents.front().unwrap().to_string(),
+                        ),
+                    )));
                 }
             }
             // Escape character
@@ -247,7 +245,7 @@ fn json_string_lexer(
                                 }
                             };
                             let tmp = unescape_unicode(
-                                &format!("{}{}{}{}", hex1, hex2, hex3, hex4),
+                                &format!("{hex1}{hex2}{hex3}{hex4}"),
                                 &next_codepoint,
                             );
                             if let Ok((out, codepointused)) = tmp {
@@ -265,8 +263,7 @@ fn json_string_lexer(
                             } else {
                                 return Err(MawuError::JsonError(JsonError::ParseError(
                                     JsonParseError::InvalidEscapeSequence(format!(
-                                        "{}{}",
-                                        character, next_char
+                                        "{character}{next_char}"
                                     )),
                                 )));
                             }
@@ -291,22 +288,21 @@ fn json_string_lexer(
                     } else {
                         Err(MawuError::JsonError(JsonError::ParseError(
                             JsonParseError::InvalidEscapeSequence(format!(
-                                "{}{}",
-                                character, next_char
+                                "{character}{next_char}"
                             )),
-                        )))?
+                        )))?;
                     }
                 } else {
                     Err(MawuError::JsonError(JsonError::ParseError(
                         JsonParseError::UnexpectedEndOfFile,
-                    )))?
+                    )))?;
                 }
             // Only space is accepted as whitespace in json, the rest has to be escaped
             } else if character == ' ' {
                 string.push(' ');
             } else if character == '\"' {
                 return Err(MawuError::JsonError(JsonError::ParseError(
-                    JsonParseError::InvalidEscapeSequence(format!("{}", character)),
+                    JsonParseError::InvalidEscapeSequence(format!("{character}")),
                 )));
             } else {
                 string.push(character);

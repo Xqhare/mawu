@@ -3,7 +3,7 @@ use crate::{errors::{csv_error::{CsvError, CsvWriteError}, MawuError}, mawu_valu
 
 fn serialize_csv_string(value: String, spaces: u8) -> Result<String, MawuError> {
             let mut out = format!("{}\"", make_whitespace(spaces));
-            let tmp = value.replace("\"", "\"\"");
+            let tmp = value.replace('"', "\"\"");
             out.push_str(&tmp);
             out.push('"');
             Ok(out)
@@ -91,7 +91,7 @@ pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, Mawu
         }
         body.push(row);
     }
-    let mut out = format!("{}\n", head);
+    let mut out = format!("{head}\n");
     out.push_str(body.join("\n").as_str());
     Ok(out)
 }
@@ -104,7 +104,7 @@ pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, Ma
         return Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Not a MawuValue::CSVArray!".to_string()))));
     };
 
-    let mut out = format!("{}", make_whitespace(spaces));
+    let mut out = make_whitespace(spaces).clone();
     for (row_idx, v) in rows.iter().enumerate() {
         if row_idx != 0 {
             out.push('\n');

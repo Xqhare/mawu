@@ -32,7 +32,7 @@ pub fn is_newline(s: &char) -> bool {
 ///
 /// ## Returns
 /// `Ok((String, bool))` if the string is successfully unescaped, `Err(MawuError)` otherwise
-/// the boolean is `true` if the next_codepoint was used, `false` otherwise
+/// the boolean is `true` if the `next_codepoint` was used, `false` otherwise
 pub fn unescape_unicode(s: &str, next_codepoint: &str) -> Result<(String, bool), MawuError> {
     if let Ok(out) = my_unescape_unicode_handler(s.to_string()) {
         Ok((out, false))
@@ -69,13 +69,13 @@ fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
             // Check if the unicode value is above 0x10FFFF (the maximum value of a unicode codepoint)
             if unicode_value > 0x10FFFF {
                 return Err(MawuError::InternalError(
-                    MawuInternalError::UnableToUnescapeUnicode(s.to_string()),
+                    MawuInternalError::UnableToUnescapeUnicode(s.clone()),
                 ));
             }
         } else {
             // If the character is not a digit, it is an error!
             return Err(MawuError::InternalError(
-                MawuInternalError::UnableToUnescapeUnicode(s.to_string()),
+                MawuInternalError::UnableToUnescapeUnicode(s.clone()),
             ));
         }
     }
@@ -85,7 +85,7 @@ fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
         Ok(c.to_string())
     } else {
         Err(MawuError::InternalError(
-            MawuInternalError::UnableToUnescapeUnicode(s.to_string()),
+            MawuInternalError::UnableToUnescapeUnicode(s.clone()),
         ))
     }
 }
@@ -100,7 +100,7 @@ fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
 pub fn is_digit(c: &char) -> Result<bool, MawuError> {
     // This if loop has proven to be faster than the char method `is_digit` by a very slight
     // margin. But it is faster! (Using `match` is slower than both `if` and `char` methods)
-    Ok(('0'..='9').contains(c))
+    Ok(c.is_ascii_digit())
 }
 
 pub fn is_end_of_primitive_value(c: char) -> bool {
@@ -123,7 +123,7 @@ pub fn is_json_string_terminator_token(c: Option<&char>) -> bool {
 }
 
 use athena::XffValue;
-/// Automatically converts a string into an XffValue (Number, Boolean, Null or String)
+/// Automatically converts a string into an `XffValue` (Number, Boolean, Null or String)
 pub fn xff_from_string_auto(s: String) -> XffValue {
     if s.is_empty() {
         XffValue::Null

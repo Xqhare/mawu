@@ -1,7 +1,7 @@
 use std::fmt;
 
 #[derive(Debug)]
-/// CsvError wraps all errors the CSV side of Mawu can throw
+/// `CsvError` wraps all errors the CSV side of Mawu can throw
 pub enum CsvError {
     /// A wrapper for all parsing errors
     ParseError(CsvParseError),
@@ -21,11 +21,11 @@ impl fmt::Display for CsvError {
 }
 
 #[derive(Debug)]
-/// CsvWriteError wraps all writing errors
+/// `CsvWriteError` wraps all writing errors
 pub enum CsvWriteError {
     /// Supplied value is not a CSV value
     NotCSV,
-    /// Unallowed MawuValue
+    /// Unallowed `MawuValue`
     UnallowedType(String),
 }
 
@@ -33,13 +33,13 @@ impl fmt::Display for CsvWriteError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             CsvWriteError::NotCSV => write!(f, "Supplied value is not a CSV value"),
-            CsvWriteError::UnallowedType(ref s) => write!(f, "Unallowed type: {}", s),
+            CsvWriteError::UnallowedType(ref s) => write!(f, "Unallowed type: {s}"),
         }
     }
 }
 
 #[derive(Debug)]
-/// CsvParseError wraps all parsing errors
+/// `CsvParseError` wraps all parsing errors
 pub enum CsvParseError {
     /// Encountered an unescaped double quote
     UnescapedDoubleQuote,
@@ -60,10 +60,10 @@ impl fmt::Display for CsvParseError {
         match *self {
             CsvParseError::UnescapedDoubleQuote => write!(f, "Unescaped double quote"),
             CsvParseError::UnterminatedQuote => write!(f, "Unterminated quote"),
-            CsvParseError::UnescapedCharacter(c) => write!(f, "Unescaped character: {}", c),
-            CsvParseError::ExtraValue(ref s) => write!(f, "Extra value: {}", s),
+            CsvParseError::UnescapedCharacter(c) => write!(f, "Unescaped character: {c}"),
+            CsvParseError::ExtraValue(ref s) => write!(f, "Extra value: {s}"),
             CsvParseError::UnexpectedNewline => write!(f, "Unexpected newline"),
-            CsvParseError::UnrecognizedHeader(ref s) => write!(f, "Unrecognized header: {}", s),
+            CsvParseError::UnrecognizedHeader(ref s) => write!(f, "Unrecognized header: {s}"),
         }
     }
 }

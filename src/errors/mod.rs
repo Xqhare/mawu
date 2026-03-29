@@ -6,7 +6,7 @@ pub mod csv_error;
 pub mod json_error;
 
 #[derive(Debug)]
-/// MawuError wraps all errors that can occur in Mawu.
+/// `MawuError` wraps all errors that can occur in Mawu.
 /// These are mainly `IoError`'s and parsing errors.
 pub enum MawuError {
     /// A wrapper for `std::io::Error` only used for file handling
@@ -49,11 +49,11 @@ impl fmt::Display for MawuInternalError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             MawuInternalError::UnableToLockMasterMutex => write!(f, "Unable to lock mutex"),
-            MawuInternalError::StringWithNoChars(ref s) => write!(f, "String with no chars: {}", s),
+            MawuInternalError::StringWithNoChars(ref s) => write!(f, "String with no chars: {s}"),
             MawuInternalError::UnableToUnescapeUnicode(ref s) => {
-                write!(f, "Unable to unescape unicode: {}", s)
+                write!(f, "Unable to unescape unicode: {s}")
             },
-            MawuInternalError::NotUTF8(ref s) => write!(f, "Not UTF8: {}", s),
+            MawuInternalError::NotUTF8(ref s) => write!(f, "Not UTF8: {s}"),
         }
     }
 }

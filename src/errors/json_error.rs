@@ -1,7 +1,7 @@
 use std::fmt;
 
 #[derive(Debug)]
-/// JsonError wraps all errors the JSON side of Mawu can throw
+/// `JsonError` wraps all errors the JSON side of Mawu can throw
 pub enum JsonError {
     /// A wrapper for all JSON parsing errors
     ParseError(JsonParseError),
@@ -21,7 +21,7 @@ impl fmt::Display for JsonError {
 }
 
 #[derive(Debug)]
-/// CsvWriteError wraps all writing errors
+/// `CsvWriteError` wraps all writing errors
 pub enum JsonWriteError {
     /// Supplied value is not a JSON value
     NotJSON,
@@ -33,13 +33,13 @@ impl fmt::Display for JsonWriteError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             JsonWriteError::NotJSON => write!(f, "Supplied value is not a JSON value"),
-            JsonWriteError::NotJSONType(ref s) => write!(f, "Not JSON type: {}", s),
+            JsonWriteError::NotJSONType(ref s) => write!(f, "Not JSON type: {s}"),
         }
     }
 }
 
 #[derive(Debug)]
-/// JsonParseError wraps all parsing errors
+/// `JsonParseError` wraps all parsing errors
 pub enum JsonParseError {
     /// Encountered an unescaped double quote
     UnescapedDoubleQuote,
@@ -76,22 +76,22 @@ impl fmt::Display for JsonParseError {
         match *self {
             JsonParseError::UnescapedDoubleQuote => write!(f, "Unescaped double quote"),
             JsonParseError::UnterminatedQuote => write!(f, "Unterminated quote"),
-            JsonParseError::UnescapedCharacter(c) => write!(f, "Unescaped character: {}", c),
+            JsonParseError::UnescapedCharacter(c) => write!(f, "Unescaped character: {c}"),
             JsonParseError::UnexpectedNewline => write!(f, "Unexpected newline"),
             JsonParseError::InvalidStructuralToken(ref s) => {
-                write!(f, "Invalid structural token: {}", s)
+                write!(f, "Invalid structural token: {s}")
             }
             JsonParseError::UnexpectedEndOfFile => write!(f, "Unexpected end of file"),
-            JsonParseError::InvalidCharacter(ref s) => write!(f, "Invalid character: {}", s),
+            JsonParseError::InvalidCharacter(ref s) => write!(f, "Invalid character: {s}"),
             JsonParseError::InvalidEscapeSequence(ref s) => {
-                write!(f, "Invalid escape sequence: {}", s)
+                write!(f, "Invalid escape sequence: {s}")
             }
             JsonParseError::ExpectedColon => write!(f, "Expected colon"),
             JsonParseError::ExpectedKey => write!(f, "Expected key"),
             JsonParseError::ExpectedValue => write!(f, "Expected value"),
-            JsonParseError::UnexpectedCharacter(ref s) => write!(f, "Unexpected character: {}", s),
+            JsonParseError::UnexpectedCharacter(ref s) => write!(f, "Unexpected character: {s}"),
             JsonParseError::ExpectedEndOfObject => write!(f, "Expected end of object"),
-            JsonParseError::InvalidNumber(ref s) => write!(f, "Invalid number: {}", s),
+            JsonParseError::InvalidNumber(ref s) => write!(f, "Invalid number: {s}"),
         }
     }
 }
