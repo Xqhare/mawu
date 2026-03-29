@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod json_tests {
-    use mawu::{read::json, MawuContents};
     use athena::XffValue;
+    use mawu::{read::json, MawuContents};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -28,15 +28,18 @@ mod json_tests {
             XffValue::from("\u{0123}"),
             XffValue::from("new\u{000A}line"),
         ]);
-        let write_succ = mawu::write("test_file_delete_me_weird_unicode.json", MawuContents::Json(weird.clone()));
+        let write_succ = mawu::write(
+            "test_file_delete_me_weird_unicode.json",
+            MawuContents::Json(weird.clone()),
+        );
         assert!(write_succ.is_ok());
         let read_succ = mawu::read::json("test_file_delete_me_weird_unicode.json");
         assert!(read_succ.is_ok());
         let read_val = read_succ.unwrap();
-        
+
         let weird_arr = weird.into_array().unwrap();
         let read_arr = read_val.clone().into_array().unwrap();
-        
+
         for (a_weird, b_read) in weird_arr.iter().zip(read_arr.iter()) {
             assert_eq!(a_weird, b_read);
         }
@@ -49,7 +52,10 @@ mod json_tests {
             XffValue::from(r"\r"),
             XffValue::from(r"\t"),
         ]);
-        let write_succ2 = mawu::write("test_file_delete_me_weird_unicode2.json", MawuContents::Json(weird2.clone()));
+        let write_succ2 = mawu::write(
+            "test_file_delete_me_weird_unicode2.json",
+            MawuContents::Json(weird2.clone()),
+        );
         assert!(write_succ2.is_ok());
         let read_succ2 = mawu::read::json("test_file_delete_me_weird_unicode2.json");
         assert!(read_succ2.is_ok());
@@ -97,40 +103,104 @@ mod json_tests {
         let simple_result = json("data/json/json-test-data/simple-json.json").unwrap();
         let tmp_simple_bind = simple_result.into_object().unwrap();
         assert_eq!(tmp_simple_bind.len(), 1);
-        let tmp_quiz = tmp_simple_bind.get("quiz").unwrap().clone().into_object().unwrap();
+        let tmp_quiz = tmp_simple_bind
+            .get("quiz")
+            .unwrap()
+            .clone()
+            .into_object()
+            .unwrap();
         // Sports
-        let sports = tmp_quiz.get("sport").unwrap().clone().into_object().unwrap();
+        let sports = tmp_quiz
+            .get("sport")
+            .unwrap()
+            .clone()
+            .into_object()
+            .unwrap();
         let sport_q1 = sports.get("q1").unwrap().clone().into_object().unwrap();
-        let s_q1_question = sport_q1.get("question").unwrap().clone().into_string().unwrap();
+        let s_q1_question = sport_q1
+            .get("question")
+            .unwrap()
+            .clone()
+            .into_string()
+            .unwrap();
         assert_eq!(
             s_q1_question,
             "Which one is correct team name in 1. Bundesliga?"
         );
-        let s_q1_options = sport_q1.get("options").unwrap().clone().into_array().unwrap();
+        let s_q1_options = sport_q1
+            .get("options")
+            .unwrap()
+            .clone()
+            .into_array()
+            .unwrap();
         assert_eq!(s_q1_options.len(), 4);
         assert_eq!(
             s_q1_options.get(0).unwrap().clone().into_string().unwrap(),
             "2. Fc Bayern"
         );
-        let s_q1_answer = sport_q1.get("answer").unwrap().clone().into_string().unwrap();
+        let s_q1_answer = sport_q1
+            .get("answer")
+            .unwrap()
+            .clone()
+            .into_string()
+            .unwrap();
         assert_eq!(s_q1_answer, "VfB Stuttgart");
         // Maths
-        let maths = tmp_quiz.get("maths").unwrap().clone().into_object().unwrap();
+        let maths = tmp_quiz
+            .get("maths")
+            .unwrap()
+            .clone()
+            .into_object()
+            .unwrap();
         let m_q1 = maths.get("q1").unwrap().clone().into_object().unwrap();
         let m_q1_question = m_q1.get("question").unwrap().clone().into_string().unwrap();
         assert_eq!(m_q1_question, "5 + 8 = ?");
         let m_q1_options = m_q1.get("options").unwrap().clone().into_array().unwrap();
         assert_eq!(m_q1_options.len(), 4);
-        assert_eq!(m_q1_options.get(0).unwrap().clone().into_number().unwrap().into_usize().unwrap(), 10);
-        let m_q1_answer = m_q1.get("answer").unwrap().clone().into_number().unwrap().into_usize().unwrap();
+        assert_eq!(
+            m_q1_options
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_usize()
+                .unwrap(),
+            10
+        );
+        let m_q1_answer = m_q1
+            .get("answer")
+            .unwrap()
+            .clone()
+            .into_number()
+            .unwrap()
+            .into_usize()
+            .unwrap();
         assert_eq!(m_q1_answer, 13);
         let m_q2 = maths.get("q2").unwrap().clone().into_object().unwrap();
         let m_q2_question = m_q2.get("question").unwrap().clone().into_string().unwrap();
         assert_eq!(m_q2_question, "12 - 10 = ?");
         let m_q2_options = m_q2.get("options").unwrap().clone().into_array().unwrap();
         assert_eq!(m_q2_options.len(), 4);
-        assert_eq!(m_q2_options.get(0).unwrap().clone().into_number().unwrap().into_usize().unwrap(), 1);
-        let m_q2_answer = m_q2.get("answer").unwrap().clone().into_number().unwrap().into_usize().unwrap();
+        assert_eq!(
+            m_q2_options
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_usize()
+                .unwrap(),
+            1
+        );
+        let m_q2_answer = m_q2
+            .get("answer")
+            .unwrap()
+            .clone()
+            .into_number()
+            .unwrap()
+            .into_usize()
+            .unwrap();
         assert_eq!(m_q2_answer, 2);
 
         let very_simple_result = json("data/json/json-test-data/very-simple-json.json").unwrap();
@@ -286,55 +356,106 @@ mod json_tests {
 
     #[test]
     fn transformation_numbers() {
-        let number_10 = json(
-            "data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1.0.json",
-        )
-        .unwrap();
+        let number_10 =
+            json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1.0.json")
+                .unwrap();
         assert_eq!(number_10.clone().into_array().unwrap().len(), 1);
-        assert!(number_10.into_array().unwrap().get(0).unwrap().clone().into_number().unwrap().into_f64().unwrap() == 1.0);
-        
+        assert!(
+            number_10
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_f64()
+                .unwrap()
+                == 1.0
+        );
+
         let number_1000000000000000005 = json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1.000000000000000005.json").unwrap();
         assert_eq!(
-            number_1000000000000000005.into_array().unwrap().get(0).unwrap()
-                .clone().into_number()
-                .unwrap().into_f64().unwrap(),
+            number_1000000000000000005
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_f64()
+                .unwrap(),
             1.0
         );
-        let number_1e6 = json(
-            "data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1e6.json",
-        )
-        .unwrap();
+        let number_1e6 =
+            json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1e6.json")
+                .unwrap();
         assert_eq!(
-            number_1e6.into_array().unwrap().get(0).unwrap().clone().into_number().unwrap().into_f64().unwrap(),
+            number_1e6
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_f64()
+                .unwrap(),
             1000000.0
         );
-        let number_1e_999 = json(
-            "data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1e-999.json",
-        )
-        .unwrap();
+        let number_1e_999 =
+            json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1e-999.json")
+                .unwrap();
         assert_eq!(
-            number_1e_999.into_array().unwrap().get(0).unwrap().clone().into_number().unwrap().into_f64().unwrap(),
+            number_1e_999
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_f64()
+                .unwrap(),
             0.0
         );
         let number_1000000000000000 = json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/number_1000000000000000.json").unwrap();
         assert_eq!(
-            number_1000000000000000.into_array().unwrap().get(0).unwrap()
-                .clone().into_number()
-                .unwrap().into_usize().unwrap(),
+            number_1000000000000000
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
+                .into_number()
+                .unwrap()
+                .into_usize()
+                .unwrap(),
             1000000000000000
         );
     }
 
     #[test]
     fn transformation_objects() {
-        let object_key_nfc_nfd = json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/object_key_nfc_nfd.json").unwrap();
+        let object_key_nfc_nfd = json(
+            "data/json/json-test-data/jsonTestSuite-data/i_test_transform/object_key_nfc_nfd.json",
+        )
+        .unwrap();
         assert_eq!(object_key_nfc_nfd.into_object().unwrap().len(), 2);
-        let object_key_nfd_nfc = json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/object_key_nfd_nfc.json").unwrap();
+        let object_key_nfd_nfc = json(
+            "data/json/json-test-data/jsonTestSuite-data/i_test_transform/object_key_nfd_nfc.json",
+        )
+        .unwrap();
         assert_eq!(object_key_nfd_nfc.into_object().unwrap().len(), 2);
         // overwrites as expected
         let object_same_key_different_values = json("data/json/json-test-data/jsonTestSuite-data/i_test_transform/object_same_key_different_values.json").unwrap();
         assert_eq!(
-            object_same_key_different_values.clone().into_object().unwrap().len(),
+            object_same_key_different_values
+                .clone()
+                .into_object()
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
@@ -357,21 +478,40 @@ mod json_tests {
         // I accept underflow to 0.0 - documented
         let number_double_huge_neg_exp = json("data/json/json-test-data/jsonTestSuite-data/test_parsing/i_number_double_huge_neg_exp.json").unwrap();
         assert_eq!(
-            number_double_huge_neg_exp.clone().into_array().unwrap().get(0).unwrap().is_number(),
+            number_double_huge_neg_exp
+                .clone()
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .is_number(),
             true
         );
         assert!(
-            number_double_huge_neg_exp.into_array().unwrap().get(0).unwrap().clone()
+            number_double_huge_neg_exp
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
                 .into_number()
                 .unwrap()
                 .into_f64()
                 .unwrap()
                 == 0.0
         );
-        let number_real_underflow = json("data/json/json-test-data/jsonTestSuite-data/test_parsing/i_number_real_underflow.json").unwrap();
+        let number_real_underflow = json(
+            "data/json/json-test-data/jsonTestSuite-data/test_parsing/i_number_real_underflow.json",
+        )
+        .unwrap();
         assert_eq!(number_real_underflow.clone().into_array().unwrap().len(), 1);
         assert!(
-            number_real_underflow.into_array().unwrap().get(0).unwrap().clone()
+            number_real_underflow
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .clone()
                 .into_number()
                 .unwrap()
                 .into_f64()
@@ -379,12 +519,16 @@ mod json_tests {
                 == 0.0
         );
         // I don't accept overflow to infinity - documented
-        let number_huge_exp = json(
-            "data/json/json-test-data/jsonTestSuite-data/test_parsing/i_number_huge_exp.json",
-        )
-        .unwrap();
+        let number_huge_exp =
+            json("data/json/json-test-data/jsonTestSuite-data/test_parsing/i_number_huge_exp.json")
+                .unwrap();
         assert_eq!(number_huge_exp.clone().into_array().unwrap().len(), 1);
-        assert!(number_huge_exp.into_array().unwrap().get(0).unwrap().is_null());
+        assert!(number_huge_exp
+            .into_array()
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .is_null());
     }
 
     #[test]
@@ -395,35 +539,29 @@ mod json_tests {
             json("data/json/json-test-data/jsonTestSuite-data/test_parsing/y_array_empty.json")
                 .unwrap();
         assert_eq!(array_empty.is_array(), true);
-        
+
         let array_null =
             json("data/json/json-test-data/jsonTestSuite-data/test_parsing/y_array_null.json")
                 .unwrap();
         assert_eq!(array_null.is_array(), true);
-        assert_eq!(array_null.into_array().unwrap().get(0).unwrap().is_null(), true);
+        assert_eq!(
+            array_null.into_array().unwrap().get(0).unwrap().is_null(),
+            true
+        );
     }
 
     #[test]
     fn valid_objects() {
         let object =
-            json("data/json/json-test-data/jsonTestSuite-data/test_parsing/y_object.json")
-                .unwrap();
+            json("data/json/json-test-data/jsonTestSuite-data/test_parsing/y_object.json").unwrap();
         assert_eq!(object.is_object(), true);
         let obj = object.into_object().unwrap();
         assert_eq!(
-            obj.get("asd")
-                .unwrap()
-                .clone()
-                .into_string()
-                .unwrap(),
+            obj.get("asd").unwrap().clone().into_string().unwrap(),
             "sdf"
         );
         assert_eq!(
-            obj.get("dfg")
-                .unwrap()
-                .clone()
-                .into_string()
-                .unwrap(),
+            obj.get("dfg").unwrap().clone().into_string().unwrap(),
             "fgh"
         );
     }

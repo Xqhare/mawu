@@ -1,10 +1,13 @@
 // the 'unused_imports' warning is a false positive, they are needed for the tests
 #![allow(unused_imports)]
 use std::{
-    char, collections::{HashMap, VecDeque}, rc::Rc, sync::{Mutex, MutexGuard}
+    char,
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+    sync::{Mutex, MutexGuard},
 };
 
-use athena::{XffValue, Number, Array, Object};
+use athena::{Array, Number, Object, XffValue};
 
 use crate::{
     errors::{
@@ -12,7 +15,8 @@ use crate::{
         MawuError, MawuInternalError,
     },
     utils::{
-        file_handling::read_file, is_digit, is_end_of_primitive_value, is_json_string_terminator_token, is_whitespace, unescape_unicode
+        file_handling::read_file, is_digit, is_end_of_primitive_value,
+        is_json_string_terminator_token, is_whitespace, unescape_unicode,
     },
 };
 
@@ -32,9 +36,7 @@ pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> 
     }
 }
 
-fn json_value_lexer(
-    file_contents: &mut MutexGuard<VecDeque<char>>,
-) -> Result<XffValue, MawuError> {
+fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<XffValue, MawuError> {
     while file_contents.front().is_some() {
         let this_char = file_contents.pop_front().unwrap();
         // Ignore whitespace
@@ -50,12 +52,24 @@ fn json_value_lexer(
         } else if this_char == '[' {
             // array
             return json_array_lexer(file_contents);
-        } else if this_char == 'N' && file_contents.front() == Some(&'a') && file_contents.get(1) == Some(&'N') || this_char == 'n' && file_contents.front() == Some(&'a') && file_contents.get(1) == Some(&'n') {
+        } else if this_char == 'N'
+            && file_contents.front() == Some(&'a')
+            && file_contents.get(1) == Some(&'N')
+            || this_char == 'n'
+                && file_contents.front() == Some(&'a')
+                && file_contents.get(1) == Some(&'n')
+        {
             // NaN
             return Err(MawuError::JsonError(JsonError::ParseError(
                 JsonParseError::InvalidNumber("NaN".to_string()),
             )));
-        } else if this_char == 'I' && file_contents.front() == Some(&'n') && file_contents.get(1) == Some(&'f') || this_char == 'i' && file_contents.front() == Some(&'n') && file_contents.get(1) == Some(&'f') {
+        } else if this_char == 'I'
+            && file_contents.front() == Some(&'n')
+            && file_contents.get(1) == Some(&'f')
+            || this_char == 'i'
+                && file_contents.front() == Some(&'n')
+                && file_contents.get(1) == Some(&'f')
+        {
             // Infinity
             return Err(MawuError::JsonError(JsonError::ParseError(
                 JsonParseError::InvalidNumber("Infinity".to_string()),
@@ -159,9 +173,7 @@ fn json_object_lexer(
     }
 }
 
-fn json_array_lexer(
-    file_contents: &mut MutexGuard<VecDeque<char>>,
-) -> Result<XffValue, MawuError> {
+fn json_array_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<XffValue, MawuError> {
     let mut binding_array: Array = Default::default();
     while file_contents.front() != Some(&']') && file_contents.front().is_some() {
         if is_whitespace(file_contents.front().unwrap()) {
@@ -348,7 +360,7 @@ fn json_number_lexer(
             )));
         }
     }
-    
+
     // Parse the number string into XffValue
     if out.contains('.') || out.contains('e') || out.contains('E') {
         if let Ok(f) = out.parse::<f64>() {
@@ -370,17 +382,15 @@ fn json_number_lexer(
 
 #[test]
 fn object_lexer() {
-    let input = json_lexer(
-        read_file("data/json/json-test-data/rfc8259-test-data/object.json").unwrap()
-    );
+    let input =
+        json_lexer(read_file("data/json/json-test-data/rfc8259-test-data/object.json").unwrap());
     assert!(input.is_ok());
 }
 
 #[test]
 fn array_lexer() {
-    let input = json_lexer(
-        read_file("data/json/json-test-data/rfc8259-test-data/array.json").unwrap()
-    );
+    let input =
+        json_lexer(read_file("data/json/json-test-data/rfc8259-test-data/array.json").unwrap());
     assert!(input.is_ok());
 }
 
@@ -398,8 +408,7 @@ fn string_lexer() {
     let parsed_unicode = json_lexer(unicode.into());
     assert!(parsed_unicode.is_ok());
     assert!(
-        parsed_unicode.unwrap()
-            == XffValue::String("\u{2603}\u{0026}\u{00EA}\u{FB20}".to_string())
+        parsed_unicode.unwrap() == XffValue::String("\u{2603}\u{0026}\u{00EA}\u{FB20}".to_string())
     );
 
     let backslash = vec!['\"', '\\', '\\', '\"'];

@@ -1,11 +1,11 @@
 //! # Mawu
 //! A JSON and CSV serialization and deserialization library written in rust.
-//! 
+//!
 //! Mawu, named after the ancient creator goddess Mawu in West African mythology, offers a JSON and CSV serialization and deserialization library implementing the rfc4180, rfc8259 and the ECMA-404 standard.
 //!
 //! Mawu is a zero dependency library and supports 64bit systems only.
 //!
-//! ***This is a hobbyist repo badly reinventing the wheel and not ready for production use.*** 
+//! ***This is a hobbyist repo badly reinventing the wheel and not ready for production use.***
 //!
 //! ## Features
 //! - Simple
@@ -69,20 +69,20 @@
 //! It serves as a container for either a headed CSV (`CSVObject`) or a headless CSV (`CSVArray`),
 //! wrapping `athena::XffValue` for the individual fields.
 //!
-//! For JSON data, Mawu now returns `athena::XffValue` directly, providing a more direct and 
+//! For JSON data, Mawu now returns `athena::XffValue` directly, providing a more direct and
 //! standardized way to interact with JSON structures.
 //!
 //! ## `MawuContents`
-//! To maintain a unified writing API, the `MawuContents` enum is used to wrap either 
+//! To maintain a unified writing API, the `MawuContents` enum is used to wrap either
 //! `XffValue` (for JSON) or `MawuValue` (for CSV) when calling `write` or `write_pretty`.
 //!
 
 /// Contains all the errors that can be returned by Mawu
 pub mod errors;
-/// Contains a wrapper for all data values supported by Mawu
-pub mod mawu_value;
 /// Contains all the lexers for CSV and JSON files
 mod lexers;
+/// Contains a wrapper for all data values supported by Mawu
+pub mod mawu_value;
 /// Contains all the serializers for CSV and JSON files
 mod serializers;
 /// Contains all utility functions
@@ -90,8 +90,8 @@ mod utils;
 
 /// Reads CSV and JSON files into `MawuValue` or `XffValue`
 pub mod read {
-    use std::path::Path;
     use athena::XffValue;
+    use std::path::Path;
 
     use crate::{
         errors::MawuError,
@@ -110,9 +110,7 @@ pub mod read {
     /// # Errors
     /// Only returns `MawuError`'s
     pub fn csv_headed<T: AsRef<Path>>(path: T) -> Result<MawuValue, MawuError> {
-        csv_lexer::headed(
-            file_handling::read_file(path)?
-        )
+        csv_lexer::headed(file_handling::read_file(path)?)
     }
 
     /// Reads a headless CSV file and returns a `MawuValue::CSVArray` or an error if the file could not be read or parsed.
@@ -125,9 +123,7 @@ pub mod read {
     /// # Errors
     /// Only returns `MawuError`'s
     pub fn csv_headless<T: AsRef<Path>>(path: T) -> Result<MawuValue, MawuError> {
-        csv_lexer::headless(
-            file_handling::read_file(path)?
-        )
+        csv_lexer::headless(file_handling::read_file(path)?)
     }
 
     /// Reads a JSON file and returns a `XffValue` or an error if the file could not be read or parsed.
@@ -138,15 +134,18 @@ pub mod read {
     /// # Errors
     /// Only returns `MawuError`'s
     pub fn json<T: AsRef<Path>>(path: T) -> Result<XffValue, MawuError> {
-        json_lexer::json_lexer(
-            file_handling::read_file(path)?
-        )
+        json_lexer::json_lexer(file_handling::read_file(path)?)
     }
 }
 
-use std::path::Path;
+use crate::{
+    errors::MawuError,
+    mawu_value::MawuValue,
+    serializers::{csv_serializer, json_serializer},
+    utils::file_handling::write_file,
+};
 use athena::XffValue;
-use crate::{errors::MawuError, mawu_value::MawuValue, serializers::{csv_serializer, json_serializer}, utils::file_handling::write_file};
+use std::path::Path;
 
 /// Enum to unify JSON and CSV data for writing
 pub enum MawuContents {
@@ -185,11 +184,21 @@ pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(path: T, contents: C) -> Res
 /// * `path` - The path to the file, relative or absolute
 /// * `contents` - The contents of the file
 /// * `space` - The number of spaces to use for indentation
-pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(path: T, contents: C, spaces: u8) -> Result<(), MawuError> {
+pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
+    path: T,
+    contents: C,
+    spaces: u8,
+) -> Result<(), MawuError> {
     let contents = contents.into();
     match contents {
-        MawuContents::Csv(MawuValue::CSVObject(v)) => write_file(path, csv_serializer::serialize_csv_headed(MawuValue::CSVObject(v), spaces)?),
-        MawuContents::Csv(MawuValue::CSVArray(v)) => write_file(path, csv_serializer::serialize_csv_unheaded(MawuValue::CSVArray(v), spaces)?),
+        MawuContents::Csv(MawuValue::CSVObject(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::CSVObject(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::CSVArray(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_unheaded(MawuValue::CSVArray(v), spaces)?,
+        ),
         MawuContents::Json(v) => write_file(path, json_serializer::serialize_json(v, spaces, 0)?),
     }
 }
@@ -209,15 +218,13 @@ mod tests {
         object.insert("key2".to_string(), XffValue::from(2));
         let json_value1 = XffValue::Object(object);
 
-        write_pretty(path_to_file1, MawuContents::Json(json_value1), 4).expect("Failed to write JSON file");
+        write_pretty(path_to_file1, MawuContents::Json(json_value1), 4)
+            .expect("Failed to write JSON file");
 
         let json_value2 = XffValue::from(vec![
             XffValue::from("a"),
             XffValue::from(1),
-            XffValue::from(vec![
-                XffValue::from(-1),
-                XffValue::from(true),
-            ]),
+            XffValue::from(vec![XffValue::from(-1), XffValue::from(true)]),
         ]);
         write(path_to_file2, MawuContents::Json(json_value2)).expect("Failed to write JSON file");
 
@@ -225,12 +232,41 @@ mod tests {
         let read_json2 = read::json(path_to_file2).unwrap();
 
         assert!(read_json1.is_object());
-        assert_eq!(read_json1.into_object().unwrap().get("key1").unwrap().into_string().unwrap(), "value1");
-        assert_eq!(read_json1.into_object().unwrap().get("key2").unwrap().into_number().unwrap().into_usize().unwrap(), 2);
+        assert_eq!(
+            read_json1
+                .into_object()
+                .unwrap()
+                .get("key1")
+                .unwrap()
+                .into_string()
+                .unwrap(),
+            "value1"
+        );
+        assert_eq!(
+            read_json1
+                .into_object()
+                .unwrap()
+                .get("key2")
+                .unwrap()
+                .into_number()
+                .unwrap()
+                .into_usize()
+                .unwrap(),
+            2
+        );
 
         assert!(read_json2.is_array());
         assert_eq!(read_json2.into_array().unwrap().len(), 3);
-        assert_eq!(read_json2.into_array().unwrap().get(0).unwrap().into_string().unwrap(), "a");
+        assert_eq!(
+            read_json2
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .into_string()
+                .unwrap(),
+            "a"
+        );
 
         std::fs::remove_file(path_to_file1).unwrap();
         std::fs::remove_file(path_to_file2).unwrap();
@@ -253,7 +289,14 @@ mod tests {
         write_pretty(path_to_file, MawuContents::Csv(csv_value), 4).unwrap();
         let read_csv = read::csv_headed(path_to_file).unwrap();
         assert!(read_csv.is_csv_object());
-        assert_eq!(read_csv.as_csv_object().unwrap()[0].get("key1").unwrap().into_string().unwrap(), "value1");
+        assert_eq!(
+            read_csv.as_csv_object().unwrap()[0]
+                .get("key1")
+                .unwrap()
+                .into_string()
+                .unwrap(),
+            "value1"
+        );
 
         std::fs::remove_file(path_to_file).unwrap();
     }

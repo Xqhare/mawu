@@ -1,5 +1,11 @@
-use athena::{XffValue, Number};
-use crate::{errors::{json_error::{JsonError, JsonWriteError}, MawuError}, utils::make_whitespace};
+use crate::{
+    errors::{
+        json_error::{JsonError, JsonWriteError},
+        MawuError,
+    },
+    utils::make_whitespace,
+};
+use athena::{Number, XffValue};
 
 pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String, MawuError> {
     let mut out: String = Default::default();
@@ -40,8 +46,7 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             } else {
                 out.push('}');
             }
-            
-        },
+        }
         XffValue::Array(a) => {
             if is_pretty {
                 out.push('\n');
@@ -71,29 +76,27 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             } else {
                 out.push(']');
             }
-        },
+        }
         XffValue::Null => {
             out.push_str("null");
-        },
+        }
         XffValue::Boolean(b) => {
             out.push_str(format!("{b}").as_str());
-        },
-        XffValue::Number(n) => {
-            match n {
-                Number::Unsigned(u) => out.push_str(format!("{u}").as_str()),
-                Number::Integer(i) => out.push_str(format!("{i}").as_str()),
-                Number::Float(f) => {
-                    if f.fract() == 0.0 || f.fract() == -0.0 {
-                        out.push_str(&format!("{}{}.0", make_whitespace(spaces), f));
-                    } else {
-                        out.push_str(&format!("{}{}", make_whitespace(spaces), f));
-                    }
+        }
+        XffValue::Number(n) => match n {
+            Number::Unsigned(u) => out.push_str(format!("{u}").as_str()),
+            Number::Integer(i) => out.push_str(format!("{i}").as_str()),
+            Number::Float(f) => {
+                if f.fract() == 0.0 || f.fract() == -0.0 {
+                    out.push_str(&format!("{}{}.0", make_whitespace(spaces), f));
+                } else {
+                    out.push_str(&format!("{}{}", make_whitespace(spaces), f));
                 }
             }
         },
         XffValue::String(s) => {
             out.push_str(serialize_string_to_json(&s).as_str());
-        },
+        }
         XffValue::OrderedObject(o) => {
             if is_pretty {
                 out.push('\n');
@@ -126,28 +129,32 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             } else {
                 out.push('}');
             }
-        },
+        }
         XffValue::Table(t) => {
-             let mut map = std::collections::BTreeMap::new();
-             map.insert("columns".to_string(), XffValue::from(t.columns.clone()));
-             map.insert("rows".to_string(), XffValue::from(t.rows.clone()));
-             out.push_str(&serialize_json(XffValue::Object(athena::Object { map }), spaces, depth)?);
-        },
+            let mut map = std::collections::BTreeMap::new();
+            map.insert("columns".to_string(), XffValue::from(t.columns.clone()));
+            map.insert("rows".to_string(), XffValue::from(t.rows.clone()));
+            out.push_str(&serialize_json(
+                XffValue::Object(athena::Object { map }),
+                spaces,
+                depth,
+            )?);
+        }
         XffValue::Metadata(m) => {
             out.push_str(&serialize_json(XffValue::Object(m.map), spaces, depth)?);
-        },
+        }
         XffValue::DateTime(dt) => {
             out.push_str(&format!("{dt}"));
-        },
+        }
         XffValue::Duration(d) => {
             out.push_str(&format!("{d}"));
-        },
+        }
         XffValue::Uuid(u) => {
             out.push_str(&format!("\"{u}\""));
-        },
+        }
         XffValue::NaN | XffValue::Infinity | XffValue::NegInfinity => {
             out.push_str("null");
-        },
+        }
         XffValue::Data(d) => {
             // Data is not standard JSON, but we can serialize it as an array of bytes
             out.push('[');
@@ -158,9 +165,11 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
                 out.push_str(&format!("{byte}"));
             }
             out.push(']');
-        },
+        }
         XffValue::CommandCharacter(_) | XffValue::ArrayCmdChar(_) => {
-             Err(MawuError::JsonError(JsonError::WriteError(JsonWriteError::NotJSONType("CommandCharacter".to_string()))))?;
+            Err(MawuError::JsonError(JsonError::WriteError(
+                JsonWriteError::NotJSONType("CommandCharacter".to_string()),
+            )))?;
         }
     }
     if depth == 0 {

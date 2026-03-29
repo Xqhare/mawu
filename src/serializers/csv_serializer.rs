@@ -1,27 +1,32 @@
-use athena::{XffValue, Number};
-use crate::{errors::{csv_error::{CsvError, CsvWriteError}, MawuError}, mawu_value::MawuValue, utils::make_whitespace};
+use crate::{
+    errors::{
+        csv_error::{CsvError, CsvWriteError},
+        MawuError,
+    },
+    mawu_value::MawuValue,
+    utils::make_whitespace,
+};
+use athena::{Number, XffValue};
 
 fn serialize_csv_string(value: String, spaces: u8) -> Result<String, MawuError> {
-            let mut out = format!("{}\"", make_whitespace(spaces));
-            let tmp = value.replace('"', "\"\"");
-            out.push_str(&tmp);
-            out.push('"');
-            Ok(out)
+    let mut out = format!("{}\"", make_whitespace(spaces));
+    let tmp = value.replace('"', "\"\"");
+    out.push_str(&tmp);
+    out.push('"');
+    Ok(out)
 }
 
 fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError> {
     match value {
         XffValue::String(s) => serialize_csv_string(s, spaces),
-        XffValue::Number(n) => {
-            match n {
-                Number::Unsigned(u) => Ok(format!("{}{}", make_whitespace(spaces), u)),
-                Number::Integer(i) => Ok(format!("{}{}", make_whitespace(spaces), i)),
-                Number::Float(f) => {
-                    if f.fract() == 0.0 {
-                        Ok(format!("{}{}.0", make_whitespace(spaces), f))
-                    } else {
-                       Ok(format!("{}{}", make_whitespace(spaces), f)) 
-                    }
+        XffValue::Number(n) => match n {
+            Number::Unsigned(u) => Ok(format!("{}{}", make_whitespace(spaces), u)),
+            Number::Integer(i) => Ok(format!("{}{}", make_whitespace(spaces), i)),
+            Number::Float(f) => {
+                if f.fract() == 0.0 {
+                    Ok(format!("{}{}.0", make_whitespace(spaces), f))
+                } else {
+                    Ok(format!("{}{}", make_whitespace(spaces), f))
                 }
             }
         },
@@ -45,13 +50,27 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
         XffValue::Infinity => Ok(format!("{}Infinity", make_whitespace(spaces))),
         XffValue::NegInfinity => Ok(format!("{}-Infinity", make_whitespace(spaces))),
         // All other types are not allowed or serialized as something else
-        XffValue::Object(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Object".to_string())))),
-        XffValue::OrderedObject(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("OrderedObject".to_string())))),
-        XffValue::Table(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Table".to_string())))),
-        XffValue::Metadata(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Metadata".to_string())))),
-        XffValue::Data(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Data".to_string())))),
-        XffValue::CommandCharacter(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("CommandCharacter".to_string())))),
-        XffValue::ArrayCmdChar(_) => Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("ArrayCmdChar".to_string())))),
+        XffValue::Object(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Object".to_string()),
+        ))),
+        XffValue::OrderedObject(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("OrderedObject".to_string()),
+        ))),
+        XffValue::Table(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Table".to_string()),
+        ))),
+        XffValue::Metadata(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Metadata".to_string()),
+        ))),
+        XffValue::Data(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Data".to_string()),
+        ))),
+        XffValue::CommandCharacter(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("CommandCharacter".to_string()),
+        ))),
+        XffValue::ArrayCmdChar(_) => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("ArrayCmdChar".to_string()),
+        ))),
     }
 }
 
@@ -62,11 +81,13 @@ pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, Mawu
     let mut head: String = Default::default();
     let mut body: Vec<String> = Default::default();
     let mut keys: Vec<String> = Default::default();
-    
+
     let maps = if let MawuValue::CSVObject(v) = value {
         v
     } else {
-        return Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Not a MawuValue::CSVObject!".to_string()))));
+        return Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Not a MawuValue::CSVObject!".to_string()),
+        )));
     };
 
     for map in maps {
@@ -101,7 +122,9 @@ pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, Ma
     let rows = if let MawuValue::CSVArray(v) = value {
         v
     } else {
-        return Err(MawuError::CsvError(CsvError::WriteError(CsvWriteError::UnallowedType("Not a MawuValue::CSVArray!".to_string()))));
+        return Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Not a MawuValue::CSVArray!".to_string()),
+        )));
     };
 
     let mut out = make_whitespace(spaces).clone();
