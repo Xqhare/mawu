@@ -105,6 +105,142 @@ mod csv_tests {
                 "DD37Cf93aecA6Dc"
             );
         }
+
+        #[test]
+        fn serialize_table_to_csv() {
+            use athena::{Table, XffValue};
+            let path = "table_output.csv";
+            let mut table = Table::with_columns(vec!["Name".to_string(), "Age".to_string()]);
+            table
+                .add_row(vec![XffValue::from("Alice"), XffValue::from(30)])
+                .unwrap();
+            table
+                .add_row(vec![XffValue::from("Bob"), XffValue::from(25)])
+                .unwrap();
+
+            mawu::write_pretty(path, mawu::mawu_value::MawuValue::Table(table), 0).unwrap();
+
+            let read_csv = mawu::read::csv_headed(path).unwrap();
+            assert!(read_csv.is_csv_object());
+            let rows = read_csv.as_csv_object().unwrap();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0].get("Name").unwrap().as_string().unwrap(), "Alice");
+            assert_eq!(
+                rows[1]
+                    .get("Age")
+                    .unwrap()
+                    .as_number()
+                    .unwrap()
+                    .into_usize()
+                    .unwrap(),
+                25
+            );
+
+            std::fs::remove_file(path).unwrap();
+        }
+
+        #[test]
+        fn serialize_object_to_csv() {
+            use athena::Object;
+            let path = "object_output.csv";
+            let mut obj = Object::new();
+            obj.insert("Key1", "Val1");
+            obj.insert("Key2", 42);
+
+            mawu::write_pretty(path, mawu::mawu_value::MawuValue::Object(obj), 0).unwrap();
+
+            let read_csv = mawu::read::csv_headed(path).unwrap();
+            assert!(read_csv.is_csv_object());
+            let rows = read_csv.as_csv_object().unwrap();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get("Key1").unwrap().as_string().unwrap(), "Val1");
+
+            std::fs::remove_file(path).unwrap();
+        }
+
+        #[test]
+        fn serialize_ordered_object_to_csv() {
+            use athena::OrderedObject;
+            let path = "ordered_object_output.csv";
+            let mut obj = OrderedObject::new();
+            obj.push("A", 1);
+            obj.push("B", 2);
+
+            mawu::write_pretty(path, mawu::mawu_value::MawuValue::OrderedObject(obj), 0).unwrap();
+
+            let read_csv = mawu::read::csv_headed(path).unwrap();
+            assert!(read_csv.is_csv_object());
+            let rows = read_csv.as_csv_object().unwrap();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(
+                rows[0]
+                    .get("A")
+                    .unwrap()
+                    .as_number()
+                    .unwrap()
+                    .into_usize()
+                    .unwrap(),
+                1
+            );
+
+            std::fs::remove_file(path).unwrap();
+        }
+
+        #[test]
+        fn nested_structures_in_csv() {
+            use athena::{Object, XffValue};
+            use std::collections::HashMap;
+            let path = "nested_output.csv";
+            let mut row = HashMap::new();
+            row.insert("simple".to_string(), XffValue::from("val"));
+            row.insert("array".to_string(), XffValue::from(vec![1, 2, 3]));
+
+            let mut nested_obj = Object::new();
+            nested_obj.insert("inner", "value");
+            row.insert("object".to_string(), XffValue::Object(nested_obj));
+
+            let csv = mawu::mawu_value::MawuValue::CSVObject(vec![row]);
+            mawu::write_pretty(path, csv, 0).unwrap();
+
+            let content = std::fs::read_to_string(path).unwrap();
+            assert!(content.contains("simple"));
+            assert!(content.contains("array"));
+            assert!(content.contains("object"));
+            assert!(content.contains("[1,2,3]"));
+            assert!(content.contains("{inner:\"value\"}"));
+
+            std::fs::remove_file(path).unwrap();
+        }
+
+        #[test]
+        fn command_character_in_csv() {
+            use athena::{CommandCharacter, XffValue};
+            use std::collections::HashMap;
+            let path = "cmd_char_output.csv";
+            let mut row = HashMap::new();
+            row.insert(
+                "cmd".to_string(),
+                XffValue::CommandCharacter(CommandCharacter::Bell),
+            );
+            row.insert(
+                "array_cmd".to_string(),
+                XffValue::ArrayCmdChar(vec![
+                    CommandCharacter::StartOfHeading,
+                    CommandCharacter::EndOfText,
+                ]),
+            );
+
+            let csv = mawu::mawu_value::MawuValue::CSVObject(vec![row]);
+            mawu::write_pretty(path, csv, 0).unwrap();
+
+            let content = std::fs::read_to_string(path).unwrap();
+            assert!(content.contains("cmd"));
+            assert!(content.contains("array_cmd"));
+            assert!(content.contains("7")); // Bell
+            assert!(content.contains("[1,3]")); // SOH, ETX
+
+            std::fs::remove_file(path).unwrap();
+        }
     }
 
     mod headless {

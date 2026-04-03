@@ -43,6 +43,53 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
             out.push(']');
             Ok(out)
         }
+        XffValue::Object(o) => {
+            let mut out = format!("{}{{", make_whitespace(spaces));
+            for (i, (k, v)) in o.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push_str(&format!("{}:{}", k, serialize_csv_value(v.clone(), spaces)?));
+            }
+            out.push('}');
+            Ok(out)
+        }
+        XffValue::OrderedObject(o) => {
+            let mut out = format!("{}{{(ordered) ", make_whitespace(spaces));
+            for (i, (k, v)) in o.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push_str(&format!("{}:{}", k, serialize_csv_value(v.clone(), spaces)?));
+            }
+            out.push('}');
+            Ok(out)
+        }
+        XffValue::Table(t) => {
+            let mut out = format!("{}Table(cols:[", make_whitespace(spaces));
+            for (i, col) in t.columns.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push_str(col);
+            }
+            out.push_str("],rows:[");
+            for (i, row) in t.rows.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push('[');
+                for (j, val) in row.iter().enumerate() {
+                    if j != 0 {
+                        out.push(',');
+                    }
+                    out.push_str(&serialize_csv_value(val.clone(), spaces)?);
+                }
+                out.push(']');
+            }
+            out.push_str("])");
+            Ok(out)
+        }
         XffValue::Null => Ok(String::new()),
         XffValue::DateTime(dt) => Ok(format!("{}{}", make_whitespace(spaces), dt)),
         XffValue::Duration(d) => Ok(format!("{}{}", make_whitespace(spaces), d)),
@@ -50,72 +97,126 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
         XffValue::NaN => Ok(format!("{}NaN", make_whitespace(spaces))),
         XffValue::Infinity => Ok(format!("{}Infinity", make_whitespace(spaces))),
         XffValue::NegInfinity => Ok(format!("{}-Infinity", make_whitespace(spaces))),
+        XffValue::Metadata(m) => serialize_csv_value(XffValue::Object(m.map), spaces),
+        XffValue::Data(d) => {
+            let mut out = format!("{}[", make_whitespace(spaces));
+            for (i, b) in d.data.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push_str(&format!("{}", b));
+            }
+            out.push(']');
+            Ok(out)
+        }
+        XffValue::CommandCharacter(c) => Ok(format!("{}{}", make_whitespace(spaces), c.as_u8())),
+        XffValue::ArrayCmdChar(ac) => {
+            let mut out = format!("{}[", make_whitespace(spaces));
+            for (i, c) in ac.iter().enumerate() {
+                if i != 0 {
+                    out.push(',');
+                }
+                out.push_str(&format!("{}", c.as_u8()));
+            }
+            out.push(']');
+            Ok(out)
+        }
         // All other types are not allowed or serialized as something else
-        XffValue::Object(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Object".to_string()),
-        ))),
-        XffValue::OrderedObject(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("OrderedObject".to_string()),
-        ))),
-        XffValue::Table(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Table".to_string()),
-        ))),
-        XffValue::Metadata(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Metadata".to_string()),
-        ))),
-        XffValue::Data(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Data".to_string()),
-        ))),
-        XffValue::CommandCharacter(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("CommandCharacter".to_string()),
-        ))),
-        XffValue::ArrayCmdChar(_) => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("ArrayCmdChar".to_string()),
-        ))),
     }
 }
 
 pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, MawuError> {
-    // Headed: Vec<HashMap<String, XffValue>>
+    // Headed: Vec<HashMap<String, XffValue>> | Object | OrderedObject | Table
 
-    let mut head_created = false;
-    let mut head: String = Default::default();
-    let mut body: Vec<String> = Default::default();
-    let mut keys: Vec<String> = Default::default();
+    match value {
+        MawuValue::CSVObject(maps) => {
+            let mut head_created = false;
+            let mut head: String = Default::default();
+            let mut body: Vec<String> = Default::default();
+            let mut keys: Vec<String> = Default::default();
 
-    let maps = if let MawuValue::CSVObject(v) = value {
-        v
-    } else {
-        return Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Not a MawuValue::CSVObject!".to_string()),
-        )));
-    };
-
-    for map in maps {
-        let mut row: String = Default::default();
-        if !head_created {
-            for (i, (key, _)) in map.iter().enumerate() {
-                keys.push(key.clone());
+            for map in maps {
+                let mut row: String = Default::default();
+                if !head_created {
+                    for (i, (key, _)) in map.iter().enumerate() {
+                        keys.push(key.clone());
+                        if i != 0 {
+                            head.push(',');
+                        }
+                        head.push_str(make_whitespace(spaces).as_str());
+                        head.push_str(key);
+                    }
+                    head_created = true;
+                }
+                for (i, key) in keys.iter().enumerate() {
+                    if i != 0 {
+                        row.push(',');
+                    }
+                    let get_val = map.get(key).unwrap();
+                    row.push_str(&serialize_csv_value(get_val.clone(), spaces)?);
+                }
+                body.push(row);
+            }
+            let mut out = format!("{head}\n");
+            out.push_str(body.join("\n").as_str());
+            Ok(out)
+        }
+        MawuValue::Object(o) => {
+            let mut head = String::new();
+            let mut row = String::new();
+            for (i, (k, v)) in o.iter().enumerate() {
+                if i != 0 {
+                    head.push(',');
+                    row.push(',');
+                }
+                head.push_str(make_whitespace(spaces).as_str());
+                head.push_str(k);
+                row.push_str(&serialize_csv_value(v.clone(), spaces)?);
+            }
+            Ok(format!("{head}\n{row}"))
+        }
+        MawuValue::OrderedObject(o) => {
+            let mut head = String::new();
+            let mut row = String::new();
+            for (i, (k, v)) in o.iter().enumerate() {
+                if i != 0 {
+                    head.push(',');
+                    row.push(',');
+                }
+                head.push_str(make_whitespace(spaces).as_str());
+                head.push_str(k);
+                row.push_str(&serialize_csv_value(v.clone(), spaces)?);
+            }
+            Ok(format!("{head}\n{row}"))
+        }
+        MawuValue::Table(t) => {
+            let mut head = String::new();
+            for (i, col) in t.columns.iter().enumerate() {
                 if i != 0 {
                     head.push(',');
                 }
                 head.push_str(make_whitespace(spaces).as_str());
-                head.push_str(key);
+                head.push_str(col);
             }
-            head_created = true;
-        }
-        for (i, key) in keys.iter().enumerate() {
-            if i != 0 {
-                row.push(',');
+            let mut body = Vec::new();
+            for r in t.rows {
+                let mut row = String::new();
+                for (i, val) in r.iter().enumerate() {
+                    if i != 0 {
+                        row.push(',');
+                    }
+                    row.push_str(&serialize_csv_value(val.clone(), spaces)?);
+                }
+                body.push(row);
             }
-            let get_val = map.get(key).unwrap();
-            row.push_str(&serialize_csv_value(get_val.clone(), spaces)?);
+            let mut out = format!("{head}\n");
+            out.push_str(body.join("\n").as_str());
+            Ok(out)
         }
-        body.push(row);
+        _ => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType("Expected a headed CSV type!".to_string()),
+        ))),
     }
-    let mut out = format!("{head}\n");
-    out.push_str(body.join("\n").as_str());
-    Ok(out)
 }
 
 pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, MawuError> {

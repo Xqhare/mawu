@@ -64,6 +64,13 @@
 //! # std::fs::remove_file(path_to_file).unwrap();
 //! ```
 //!
+//! ## CSV Serialization Notes
+//! When serializing to CSV:
+//! - `MawuValue::Object`, `MawuValue::OrderedObject`, and `MawuValue::Table` can be used as the root of the structure.
+//! - Deeply nested structures (Arrays, Objects within fields) are serialized as strings using a simplified format.
+//! - Metadata attached to `XffValue`s is dropped during CSV serialization.
+//! - There is no hard limit on depth, but complex nested structures may become difficult to read or parse back from CSV.
+//!
 //! ## `MawuValue`
 //! In the new version of Mawu, `MawuValue` is used exclusively for CSV data.
 //! It serves as a container for either a headed CSV (`CSVObject`) or a headless CSV (`CSVArray`),
@@ -195,6 +202,18 @@ pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
         MawuContents::Csv(MawuValue::CSVObject(v)) => write_file(
             path,
             csv_serializer::serialize_csv_headed(MawuValue::CSVObject(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::Object(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::Object(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::OrderedObject(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::OrderedObject(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::Table(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::Table(v), spaces)?,
         ),
         MawuContents::Csv(MawuValue::CSVArray(v)) => write_file(
             path,

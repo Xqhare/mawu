@@ -10,6 +10,12 @@ pub enum MawuValue {
     CSVObject(Vec<HashMap<String, XffValue>>),
     /// Only used to hold a headless CSV file
     CSVArray(Vec<Vec<XffValue>>),
+    /// XffValue variant Object
+    Object(athena::Object),
+    /// XffValue variant OrderedObject
+    OrderedObject(athena::OrderedObject),
+    /// XffValue variant Table
+    Table(athena::Table),
 }
 
 impl fmt::Display for MawuValue {
@@ -17,6 +23,9 @@ impl fmt::Display for MawuValue {
         match *self {
             MawuValue::CSVObject(ref v) => write!(f, "{v:?}"),
             MawuValue::CSVArray(ref v) => write!(f, "{v:?}"),
+            MawuValue::Object(ref o) => write!(f, "{o:?}"),
+            MawuValue::OrderedObject(ref o) => write!(f, "{o:?}"),
+            MawuValue::Table(ref t) => write!(f, "{t:?}"),
         }
     }
 }
@@ -55,6 +64,24 @@ impl MawuValue {
         matches!(self, MawuValue::CSVArray(_))
     }
 
+    /// Check if the value is an `Object`
+    #[must_use]
+    pub fn is_object(&self) -> bool {
+        matches!(self, MawuValue::Object(_))
+    }
+
+    /// Check if the value is an `OrderedObject`
+    #[must_use]
+    pub fn is_ordered_object(&self) -> bool {
+        matches!(self, MawuValue::OrderedObject(_))
+    }
+
+    /// Check if the value is a `Table`
+    #[must_use]
+    pub fn is_table(&self) -> bool {
+        matches!(self, MawuValue::Table(_))
+    }
+
     /// Returns `Some(&Vec<HashMap<String, XffValue>>)` if the value is an `CSV-Object`, `None` otherwise.
     #[must_use]
     pub fn as_csv_object(&self) -> Option<&Vec<HashMap<String, XffValue>>> {
@@ -69,6 +96,33 @@ impl MawuValue {
     pub fn as_csv_array(&self) -> Option<&Vec<Vec<XffValue>>> {
         match self {
             MawuValue::CSVArray(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Returns `Some(&athena::Object)` if the value is an `Object`, `None` otherwise.
+    #[must_use]
+    pub fn as_object(&self) -> Option<&athena::Object> {
+        match self {
+            MawuValue::Object(o) => Some(o),
+            _ => None,
+        }
+    }
+
+    /// Returns `Some(&athena::OrderedObject)` if the value is an `OrderedObject`, `None` otherwise.
+    #[must_use]
+    pub fn as_ordered_object(&self) -> Option<&athena::OrderedObject> {
+        match self {
+            MawuValue::OrderedObject(o) => Some(o),
+            _ => None,
+        }
+    }
+
+    /// Returns `Some(&athena::Table)` if the value is a `Table`, `None` otherwise.
+    #[must_use]
+    pub fn as_table(&self) -> Option<&athena::Table> {
+        match self {
+            MawuValue::Table(t) => Some(t),
             _ => None,
         }
     }
@@ -93,11 +147,47 @@ impl MawuValue {
         }
     }
 
+    /// Returns a owned copy of the value as an `athena::Object`.
+    /// Returns `None` if the value is not an `Object`.
+    #[must_use]
+    pub fn to_object(&self) -> Option<athena::Object> {
+        match self {
+            MawuValue::Object(o) => Some(o.clone()),
+            _ => None,
+        }
+    }
+
+    /// Returns a owned copy of the value as an `athena::OrderedObject`.
+    /// Returns `None` if the value is not an `OrderedObject`.
+    #[must_use]
+    pub fn to_ordered_object(&self) -> Option<athena::OrderedObject> {
+        match self {
+            MawuValue::OrderedObject(o) => Some(o.clone()),
+            _ => None,
+        }
+    }
+
+    /// Returns a owned copy of the value as an `athena::Table`.
+    /// Returns `None` if the value is not a `Table`.
+    #[must_use]
+    pub fn to_table(&self) -> Option<athena::Table> {
+        match self {
+            MawuValue::Table(t) => Some(t.clone()),
+            _ => None,
+        }
+    }
+
     /// Clears the value
     pub fn clear(&mut self) {
         match self {
             MawuValue::CSVObject(v) => v.clear(),
             MawuValue::CSVArray(v) => v.clear(),
+            MawuValue::Object(o) => o.clear(),
+            MawuValue::OrderedObject(o) => o.clear(),
+            MawuValue::Table(t) => {
+                t.columns.clear();
+                t.rows.clear();
+            }
         }
     }
 
@@ -107,6 +197,9 @@ impl MawuValue {
         match self {
             MawuValue::CSVObject(v) => v.len(),
             MawuValue::CSVArray(v) => v.len(),
+            MawuValue::Object(o) => o.len(),
+            MawuValue::OrderedObject(o) => o.len(),
+            MawuValue::Table(t) => t.rows.len(),
         }
     }
 
@@ -116,6 +209,9 @@ impl MawuValue {
         match self {
             MawuValue::CSVObject(v) => v.is_empty(),
             MawuValue::CSVArray(v) => v.is_empty(),
+            MawuValue::Object(o) => o.is_empty(),
+            MawuValue::OrderedObject(o) => o.is_empty(),
+            MawuValue::Table(t) => t.rows.is_empty(),
         }
     }
 }
