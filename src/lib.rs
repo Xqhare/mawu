@@ -88,6 +88,8 @@ mod serializers;
 /// Contains all utility functions
 mod utils;
 
+pub use athena::XffValue;
+
 /// Reads CSV and JSON files into `MawuValue` or `XffValue`
 pub mod read {
     use athena::XffValue;
