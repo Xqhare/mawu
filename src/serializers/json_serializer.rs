@@ -128,11 +128,18 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             }
         }
         XffValue::Table(t) => {
-            let mut map = std::collections::BTreeMap::new();
-            map.insert("columns".to_string(), XffValue::from(t.columns.clone()));
-            map.insert("rows".to_string(), XffValue::from(t.rows.clone()));
+            let mut array = Vec::new();
+            for row in &t.rows {
+                let mut row_map = std::collections::BTreeMap::new();
+                for (i, col_name) in t.columns.iter().enumerate() {
+                    if let Some(val) = row.get(i) {
+                        row_map.insert(col_name.clone(), val.clone());
+                    }
+                }
+                array.push(XffValue::Object(athena::Object { map: row_map }));
+            }
             out.push_str(&serialize_json(
-                XffValue::Object(athena::Object { map }),
+                XffValue::Array(athena::Array { values: array }),
                 spaces,
                 depth,
             )?);

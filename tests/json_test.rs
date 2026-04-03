@@ -602,4 +602,27 @@ mod json_tests {
 
         std::fs::remove_file(path).unwrap();
     }
+
+    #[test]
+    fn serialize_table_to_json() {
+        use athena::Table;
+        let mut table = Table::new();
+        table.columns = vec!["id".to_string(), "name".to_string()];
+        table.rows = vec![
+            vec![XffValue::from(1), XffValue::from("Alice")],
+            vec![XffValue::from(2), XffValue::from("Bob")],
+        ];
+
+        let xff_table = XffValue::Table(table);
+        let path = "table_test.json";
+        mawu::write(path, MawuContents::Json(xff_table)).unwrap();
+
+        let content = std::fs::read_to_string(path).unwrap();
+        assert_eq!(
+            content,
+            "[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"}]"
+        );
+
+        std::fs::remove_file(path).unwrap();
+    }
 }
