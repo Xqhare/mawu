@@ -236,8 +236,8 @@ mod csv_tests {
             let content = std::fs::read_to_string(path).unwrap();
             assert!(content.contains("cmd"));
             assert!(content.contains("array_cmd"));
-            assert!(content.contains("7")); // Bell
-            assert!(content.contains("[1,3]")); // SOH, ETX
+            assert!(content.contains("\"0x07\"")); // Bell
+            assert!(content.contains("[\"0x01\",\"0x03\"]")); // SOH, ETX
 
             std::fs::remove_file(path).unwrap();
         }

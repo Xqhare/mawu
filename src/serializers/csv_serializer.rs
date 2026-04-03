@@ -104,19 +104,19 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
                 if i != 0 {
                     out.push(',');
                 }
-                out.push_str(&format!("{}", b));
+                out.push_str(&format!("\"0x{:02x}\"", b));
             }
             out.push(']');
             Ok(out)
         }
-        XffValue::CommandCharacter(c) => Ok(format!("{}{}", make_whitespace(spaces), c.as_u8())),
+        XffValue::CommandCharacter(c) => Ok(format!("{}\"0x{:02x}\"", make_whitespace(spaces), c.as_u8())),
         XffValue::ArrayCmdChar(ac) => {
             let mut out = format!("{}[", make_whitespace(spaces));
             for (i, c) in ac.iter().enumerate() {
                 if i != 0 {
                     out.push(',');
                 }
-                out.push_str(&format!("{}", c.as_u8()));
+                out.push_str(&format!("\"0x{:02x}\"", c.as_u8()));
             }
             out.push(']');
             Ok(out)

@@ -565,4 +565,41 @@ mod json_tests {
             "fgh"
         );
     }
+
+    #[test]
+    fn serialize_data_to_json_hex() {
+        use athena::Data;
+        let path = "data_output.json";
+        let data = Data::from(vec![0x00, 0x01, 0x0A, 0xFF]);
+        let val = XffValue::Data(data);
+
+        mawu::write_pretty(path, val, 0).unwrap();
+
+        let content = std::fs::read_to_string(path).unwrap();
+        assert_eq!(content, "[\"0x00\", \"0x01\", \"0x0a\", \"0xff\"]");
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn serialize_cmd_char_to_json_hex() {
+        use athena::CommandCharacter;
+        let path = "cmd_char_output.json";
+        let val = XffValue::CommandCharacter(CommandCharacter::Bell);
+
+        mawu::write_pretty(path, val, 0).unwrap();
+
+        let content = std::fs::read_to_string(path).unwrap();
+        assert_eq!(content, "\"0x07\"");
+
+        let array_val = XffValue::ArrayCmdChar(vec![
+            CommandCharacter::StartOfHeading,
+            CommandCharacter::EndOfText,
+        ]);
+        mawu::write_pretty(path, array_val, 0).unwrap();
+        let content_array = std::fs::read_to_string(path).unwrap();
+        assert_eq!(content_array, "[\"0x01\", \"0x03\"]");
+
+        std::fs::remove_file(path).unwrap();
+    }
 }

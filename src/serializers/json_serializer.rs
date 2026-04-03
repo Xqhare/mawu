@@ -1,8 +1,5 @@
 use crate::{
-    errors::{
-        json_error::{JsonError, JsonWriteError},
-        MawuError,
-    },
+    MawuError,
     utils::make_whitespace,
 };
 use athena::{Number, XffValue};
@@ -156,20 +153,28 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             out.push_str("null");
         }
         XffValue::Data(d) => {
-            // Data is not standard JSON, but we can serialize it as an array of bytes
+            // Data is not standard JSON, but we can serialize it as an array of hex values
             out.push('[');
             for (i, byte) in d.data.iter().enumerate() {
                 if i != 0 {
                     out.push_str(", ");
                 }
-                out.push_str(&format!("{byte}"));
+                out.push_str(&format!("\"0x{:02x}\"", byte));
             }
             out.push(']');
         }
-        XffValue::CommandCharacter(_) | XffValue::ArrayCmdChar(_) => {
-            Err(MawuError::JsonError(JsonError::WriteError(
-                JsonWriteError::NotJSONType("CommandCharacter".to_string()),
-            )))?;
+        XffValue::CommandCharacter(c) => {
+            out.push_str(&format!("\"0x{:02x}\"", c.as_u8()));
+        }
+        XffValue::ArrayCmdChar(ac) => {
+            out.push('[');
+            for (i, c) in ac.iter().enumerate() {
+                if i != 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&format!("\"0x{:02x}\"", c.as_u8()));
+            }
+            out.push(']');
         }
     }
     if depth == 0 {
