@@ -6,9 +6,10 @@ use crate::{
     mawu_value::MawuValue,
     utils::make_whitespace,
 };
-use athena::{Number, XffValue};
+use athena::{Number, XffString, XffValue};
 
-fn serialize_csv_string(value: String, spaces: u8) -> Result<String, MawuError> {
+fn serialize_csv_string(value: XffString, spaces: u8) -> Result<String, MawuError> {
+    let value = value.to_string();
     let mut out = format!("{}\"", make_whitespace(spaces));
     let tmp = value.replace('"', "\"\"");
     out.push_str(&tmp);

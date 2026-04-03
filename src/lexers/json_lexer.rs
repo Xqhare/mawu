@@ -83,7 +83,7 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
             let _ = file_contents.pop_front();
             let _ = file_contents.pop_front();
             let _ = file_contents.pop_front();
-            return Ok(XffValue::Boolean(true));
+            return Ok(XffValue::from(true));
         } else if this_char == 'f'
             && file_contents.front() == Some(&'a')
             && file_contents.get(1) == Some(&'l')
@@ -95,7 +95,7 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
             let _ = file_contents.pop_front();
             let _ = file_contents.pop_front();
             let _ = file_contents.pop_front();
-            return Ok(XffValue::Boolean(false));
+            return Ok(XffValue::from(false));
         } else if this_char == 'n'
             && file_contents.front() == Some(&'u')
             && file_contents.get(1) == Some(&'l')
@@ -107,7 +107,7 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
             let _ = file_contents.pop_front();
             return Ok(XffValue::Null);
         } else if this_char == '}' || this_char == ']' || this_char == ',' || this_char == ':' {
-            // Invalid json grammar
+            // Invalid JSON Grammar
             return Err(MawuError::JsonError(JsonError::ParseError(
                 JsonParseError::InvalidStructuralToken(this_char.to_string()),
             )));
@@ -125,7 +125,7 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
                 },
             );
         }
-        // Invalid json grammar
+        // Invalid JSON Grammar
         return Err(MawuError::JsonError(JsonError::ParseError(
             JsonParseError::InvalidCharacter(this_char.to_string()),
         )));
@@ -210,9 +210,9 @@ fn json_string_lexer(
                 || file_contents.is_empty()
                 || file_contents.front() == Some(&'\n') && file_contents.len() <= 1
             {
-                return Ok(XffValue::String(string));
+                return Ok(XffValue::from(string));
             }
-            // the two nested if statements are joined, meaning that only if `\"` is encountered
+            // The two nested if statements are joined, meaning that only if `\"` is encountered
             // AND the next char is whitespace the logic is executed
             if character == '\"' && next_char.is_some() {
                 let next_char = file_contents.pop_front().unwrap();
@@ -222,7 +222,7 @@ fn json_string_lexer(
                     }
 
                     if is_json_string_terminator_token(file_contents.front()) {
-                        return Ok(XffValue::String(string));
+                        return Ok(XffValue::from(string));
                     }
                     return Err(MawuError::JsonError(JsonError::ParseError(
                         JsonParseError::UnexpectedCharacter(
@@ -238,7 +238,7 @@ fn json_string_lexer(
                 if next_char.is_some() {
                     let next_char = file_contents.pop_front().unwrap();
                     if next_char == 'u' {
-                        // after a u there can only ever be 4 hex-digits
+                        // After an `u` there can only ever be 4 hex-digits
                         if file_contents.len() >= 4 {
                             let hex1 = file_contents.pop_front().unwrap();
                             let hex2 = file_contents.pop_front().unwrap();
@@ -261,7 +261,7 @@ fn json_string_lexer(
                                 &next_codepoint,
                             );
                             if let Ok((out, codepointused)) = tmp {
-                                // next codepoint was used
+                                // Next code-point was used
                                 // so we pop it off, including the skipped `\u`
                                 if codepointused {
                                     let _ = file_contents.pop_front();
@@ -309,7 +309,7 @@ fn json_string_lexer(
                         JsonParseError::UnexpectedEndOfFile,
                     )))?;
                 }
-            // Only space is accepted as whitespace in json, the rest has to be escaped
+            // Only space is accepted as whitespace in JSON, the rest has to be escaped
             } else if character == ' ' {
                 string.push(' ');
             } else if character == '\"' {
@@ -399,7 +399,7 @@ fn string_lexer() {
     let double_quotes = vec!['\"', '\\', '\"', '\"'];
     let parsed_quotes = json_lexer(double_quotes.clone().into());
     assert!(parsed_quotes.is_ok());
-    assert!(parsed_quotes.unwrap() == XffValue::String("\"".to_string()));
+    assert!(parsed_quotes.unwrap() == XffValue::from("\""));
 
     let unicode = vec![
         '\"', '\\', 'u', '2', '6', '0', '3', '\\', 'u', '0', '0', '2', '6', '\\', 'u', '0', '0',
@@ -407,19 +407,17 @@ fn string_lexer() {
     ];
     let parsed_unicode = json_lexer(unicode.into());
     assert!(parsed_unicode.is_ok());
-    assert!(
-        parsed_unicode.unwrap() == XffValue::String("\u{2603}\u{0026}\u{00EA}\u{FB20}".to_string())
-    );
+    assert!(parsed_unicode.unwrap() == XffValue::from("\u{2603}\u{0026}\u{00EA}\u{FB20}"));
 
     let backslash = vec!['\"', '\\', '\\', '\"'];
     let parsed_backslash = json_lexer(backslash.into());
     assert!(parsed_backslash.is_ok());
-    assert!(parsed_backslash.unwrap() == XffValue::String("\\".to_string()));
+    assert!(parsed_backslash.unwrap() == XffValue::from("\\".to_string()));
 
     let slash = vec!['\"', '\\', '/', '\"'];
     let parsed_slash = json_lexer(slash.into());
     assert!(parsed_slash.is_ok());
-    assert!(parsed_slash.unwrap() == XffValue::String("/".to_string()));
+    assert!(parsed_slash.unwrap() == XffValue::from("/".to_string()));
 
     let mut tmp = "\"backspace\"".to_string();
     tmp.insert_str(4, r"\b");
@@ -431,22 +429,22 @@ fn string_lexer() {
     let formfeed = vec!['\"', '\\', 'f', 'f', '\"'];
     let parsed_formfeed = json_lexer(formfeed.into());
     assert!(parsed_formfeed.is_ok());
-    assert!(parsed_formfeed.unwrap() == XffValue::String("\u{000C}f".to_string()));
+    assert!(parsed_formfeed.unwrap() == XffValue::from("\u{000C}f".to_string()));
 
     let newline = vec!['\"', '\\', 'n', 'n', '\"'];
     let parsed_newline = json_lexer(newline.into());
     assert!(parsed_newline.is_ok());
-    assert!(parsed_newline.unwrap() == XffValue::String("\nn".to_string()));
+    assert!(parsed_newline.unwrap() == XffValue::from("\nn".to_string()));
 
     let return_test = vec!['\"', '\\', 'r', 'r', '\"'];
     let parsed_return = json_lexer(return_test.into());
     assert!(parsed_return.is_ok());
-    assert!(parsed_return.unwrap() == XffValue::String("\rr".to_string()));
+    assert!(parsed_return.unwrap() == XffValue::from("\rr".to_string()));
 
     let tab = vec!['\"', '\\', 't', ' ', 't', 'e', 's', 't', '\"'];
     let parsed_tab = json_lexer(tab.into());
     assert!(parsed_tab.is_ok());
-    assert!(parsed_tab.unwrap() == XffValue::String("\t test".to_string()));
+    assert!(parsed_tab.unwrap() == XffValue::from("\t test".to_string()));
 }
 
 #[test]

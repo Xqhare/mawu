@@ -95,7 +95,7 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             }
         },
         XffValue::String(s) => {
-            out.push_str(serialize_string_to_json(&s).as_str());
+            out.push_str(serialize_string_to_json(&s.to_string()).as_str());
         }
         XffValue::OrderedObject(o) => {
             if is_pretty {

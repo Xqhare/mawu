@@ -146,7 +146,6 @@ use crate::{
     serializers::{csv_serializer, json_serializer},
     utils::file_handling::write_file,
 };
-use athena::XffValue;
 use std::path::Path;
 
 /// Enum to unify JSON and CSV data for writing
