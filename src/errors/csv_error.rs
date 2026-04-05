@@ -20,6 +20,15 @@ impl fmt::Display for CsvError {
     }
 }
 
+impl std::error::Error for CsvError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match *self {
+            CsvError::ParseError(ref e) => Some(e),
+            CsvError::WriteError(ref e) => Some(e),
+        }
+    }
+}
+
 #[derive(Debug)]
 /// `CsvWriteError` wraps all writing errors
 pub enum CsvWriteError {
@@ -37,6 +46,8 @@ impl fmt::Display for CsvWriteError {
         }
     }
 }
+
+impl std::error::Error for CsvWriteError {}
 
 #[derive(Debug)]
 /// `CsvParseError` wraps all parsing errors
@@ -67,3 +78,5 @@ impl fmt::Display for CsvParseError {
         }
     }
 }
+
+impl std::error::Error for CsvParseError {}

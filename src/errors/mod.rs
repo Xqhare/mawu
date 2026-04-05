@@ -32,6 +32,17 @@ impl fmt::Display for MawuError {
     }
 }
 
+impl std::error::Error for MawuError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match *self {
+            MawuError::IoError(ref e) => Some(e),
+            MawuError::CsvError(ref e) => Some(e),
+            MawuError::JsonError(ref e) => Some(e),
+            MawuError::InternalError(ref e) => Some(e),
+        }
+    }
+}
+
 #[derive(Debug)]
 /// Internal errors, If you ever see this, please file an issue.
 pub enum MawuInternalError {
@@ -57,3 +68,5 @@ impl fmt::Display for MawuInternalError {
         }
     }
 }
+
+impl std::error::Error for MawuInternalError {}

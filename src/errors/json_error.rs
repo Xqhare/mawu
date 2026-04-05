@@ -20,6 +20,15 @@ impl fmt::Display for JsonError {
     }
 }
 
+impl std::error::Error for JsonError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match *self {
+            JsonError::ParseError(ref e) => Some(e),
+            JsonError::WriteError(ref e) => Some(e),
+        }
+    }
+}
+
 #[derive(Debug)]
 /// `CsvWriteError` wraps all writing errors
 pub enum JsonWriteError {
@@ -37,6 +46,8 @@ impl fmt::Display for JsonWriteError {
         }
     }
 }
+
+impl std::error::Error for JsonWriteError {}
 
 #[derive(Debug)]
 /// `JsonParseError` wraps all parsing errors
@@ -95,3 +106,5 @@ impl fmt::Display for JsonParseError {
         }
     }
 }
+
+impl std::error::Error for JsonParseError {}
