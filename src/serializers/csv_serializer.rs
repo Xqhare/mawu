@@ -1,14 +1,13 @@
 use crate::{
     errors::{
         csv_error::{CsvError, CsvWriteError},
-        MawuError,
     },
     mawu_value::MawuValue,
     utils::make_whitespace,
 };
 use athena::{Number, XffString, XffValue};
 
-fn serialize_csv_string(value: XffString, spaces: u8) -> Result<String, MawuError> {
+fn serialize_csv_string(value: XffString, spaces: u8) -> Result<String, nemesis::NemesisError> {
     let value = value.to_string();
     let mut out = format!("{}\"", make_whitespace(spaces));
     let tmp = value.replace('"', "\"\"");
@@ -17,7 +16,7 @@ fn serialize_csv_string(value: XffString, spaces: u8) -> Result<String, MawuErro
     Ok(out)
 }
 
-fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError> {
+fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, nemesis::NemesisError> {
     match value {
         XffValue::String(s) => serialize_csv_string(s, spaces),
         XffValue::Number(n) => match n {
@@ -127,13 +126,16 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
         XffValue::LocalTime(t) => Ok(format!("{}{}", make_whitespace(spaces), t)),
         XffValue::LocalDateTime(dt) => Ok(format!("{}{}", make_whitespace(spaces), dt)),
         XffValue::PNan | XffValue::NNan => Ok(format!("{}NaN", make_whitespace(spaces))),
-        _ => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType(format!("Unallowed type for CSV serialization")),
-        ))),
+        _ => Err(nemesis::NemesisError::new(
+            "mawu::serializers::csv_serializer",
+            CsvError::WriteError(CsvWriteError::UnallowedType(format!(
+                "Unallowed type for CSV serialization"
+            ))),
+        )),
     }
 }
 
-pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, MawuError> {
+pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, nemesis::NemesisError> {
     // Headed: Vec<HashMap<String, XffValue>> | Object | OrderedObject | Table
 
     match value {
@@ -221,20 +223,26 @@ pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, Mawu
             out.push_str(body.join("\n").as_str());
             Ok(out)
         }
-        _ => Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Expected a headed CSV type!".to_string()),
-        ))),
+        _ => Err(nemesis::NemesisError::new(
+            "mawu::serializers::csv_serializer",
+            CsvError::WriteError(CsvWriteError::UnallowedType(
+                "Expected a headed CSV type!".to_string(),
+            )),
+        )),
     }
 }
 
-pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, MawuError> {
+pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, nemesis::NemesisError> {
     // Input == Vec<Vec<XffValue>>
     let rows = if let MawuValue::CSVArray(v) = value {
         v
     } else {
-        return Err(MawuError::CsvError(CsvError::WriteError(
-            CsvWriteError::UnallowedType("Not a MawuValue::CSVArray!".to_string()),
-        )));
+        return Err(nemesis::NemesisError::new(
+            "mawu::serializers::csv_serializer",
+            CsvError::WriteError(CsvWriteError::UnallowedType(
+                "Not a MawuValue::CSVArray!".to_string(),
+            )),
+        ));
     };
 
     let mut out = make_whitespace(spaces).clone();
