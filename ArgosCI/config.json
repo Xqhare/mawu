@@ -1,5 +1,5 @@
 {
   "all": true,
-  "requires": ["athena"]
+  "requires": ["athena", "nemesis"]
 }
 
