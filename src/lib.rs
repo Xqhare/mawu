@@ -103,11 +103,11 @@ pub mod read {
     use std::path::Path;
 
     use crate::{
-        errors::MawuError,
         lexers::{csv_lexer, json_lexer},
         mawu_value::MawuValue,
         utils::file_handling,
     };
+    use nemesis::NemesisError;
 
     /// Reads a headed CSV file and returns a `MawuValue::CSVObject` or an error if the file could not be read or parsed.
     ///
@@ -117,8 +117,8 @@ pub mod read {
     /// * `path` - The path to the CSV file, relative or absolute
     ///
     /// # Errors
-    /// Only returns `MawuError`'s
-    pub fn csv_headed<T: AsRef<Path>>(path: T) -> Result<MawuValue, MawuError> {
+    /// Only returns `NemesisError`'s
+    pub fn csv_headed<T: AsRef<Path>>(path: T) -> Result<MawuValue, NemesisError> {
         csv_lexer::headed(file_handling::read_file(path)?)
     }
 
@@ -130,8 +130,8 @@ pub mod read {
     /// * `path` - The path to the CSV file, relative or absolute
     ///
     /// # Errors
-    /// Only returns `MawuError`'s
-    pub fn csv_headless<T: AsRef<Path>>(path: T) -> Result<MawuValue, MawuError> {
+    /// Only returns `NemesisError`'s
+    pub fn csv_headless<T: AsRef<Path>>(path: T) -> Result<MawuValue, NemesisError> {
         csv_lexer::headless(file_handling::read_file(path)?)
     }
 
@@ -141,18 +141,18 @@ pub mod read {
     /// * `path` - The path to the JSON file, relative or absolute
     ///
     /// # Errors
-    /// Only returns `MawuError`'s
-    pub fn json<T: AsRef<Path>>(path: T) -> Result<XffValue, MawuError> {
+    /// Only returns `NemesisError`'s
+    pub fn json<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
         json_lexer::json_lexer(file_handling::read_file(path)?)
     }
 }
 
 use crate::{
-    errors::MawuError,
     mawu_value::MawuValue,
     serializers::{csv_serializer, json_serializer},
     utils::file_handling::write_file,
 };
+use nemesis::NemesisError;
 use std::path::Path;
 
 /// Enum to unify JSON and CSV data for writing
@@ -181,7 +181,7 @@ impl From<MawuValue> for MawuContents {
 /// ## Arguments
 /// * `path` - The path to the file, relative or absolute
 /// * `contents` - The contents of the file
-pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(path: T, contents: C) -> Result<(), MawuError> {
+pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(path: T, contents: C) -> Result<(), NemesisError> {
     write_pretty(path, contents, 0)
 }
 
@@ -196,7 +196,7 @@ pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
     path: T,
     contents: C,
     spaces: u8,
-) -> Result<(), MawuError> {
+) -> Result<(), NemesisError> {
     let contents = contents.into();
     match contents {
         MawuContents::Csv(MawuValue::CSVObject(v)) => write_file(
