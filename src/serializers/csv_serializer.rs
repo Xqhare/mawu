@@ -121,7 +121,15 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, MawuError>
             out.push(']');
             Ok(out)
         }
-        // All other types are not allowed or serialized as something else
+        XffValue::Ascii(s) => serialize_csv_string(s, spaces),
+        XffValue::HpFloat(hpf) => Ok(format!("{}{}", make_whitespace(spaces), hpf)),
+        XffValue::LocalDate(d) => Ok(format!("{}{}", make_whitespace(spaces), d)),
+        XffValue::LocalTime(t) => Ok(format!("{}{}", make_whitespace(spaces), t)),
+        XffValue::LocalDateTime(dt) => Ok(format!("{}{}", make_whitespace(spaces), dt)),
+        XffValue::PNan | XffValue::NNan => Ok(format!("{}NaN", make_whitespace(spaces))),
+        _ => Err(MawuError::CsvError(CsvError::WriteError(
+            CsvWriteError::UnallowedType(format!("Unallowed type for CSV serialization")),
+        ))),
     }
 }
 

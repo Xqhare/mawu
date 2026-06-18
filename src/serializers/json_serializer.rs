@@ -183,6 +183,27 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
             }
             out.push(']');
         }
+        XffValue::Ascii(s) => {
+            out.push_str(serialize_string_to_json(&s.to_string()).as_str());
+        }
+        XffValue::HpFloat(hpf) => {
+            out.push_str(&format!("{hpf}"));
+        }
+        XffValue::LocalDate(d) => {
+            out.push_str(&format!("\"{d}\""));
+        }
+        XffValue::LocalTime(t) => {
+            out.push_str(&format!("\"{t}\""));
+        }
+        XffValue::LocalDateTime(dt) => {
+            out.push_str(&format!("\"{dt}\""));
+        }
+        XffValue::PNan | XffValue::NNan => {
+            out.push_str("null");
+        }
+        _ => {
+            out.push_str("null");
+        }
     }
     if depth == 0 {
         out = out.trim_start().to_string();
