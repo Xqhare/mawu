@@ -12,7 +12,7 @@ use athena::{Array, Number, Object, XffValue};
 use crate::{
     errors::{
         json_error::{JsonError, JsonParseError},
-        MawuError, MawuInternalError,
+        MawuInternalError,
     },
     utils::{
         file_handling::read_file, is_digit, is_end_of_primitive_value,
@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> {
+pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, nemesis::NemesisError> {
     if file_contents.is_empty() {
         Ok(XffValue::default())
     } else {
@@ -28,7 +28,8 @@ pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> 
         let res = if let Ok(mut contents) = contents_store.try_lock() {
             json_value_lexer(&mut contents)
         } else {
-            Err(MawuError::InternalError(
+            Err(nemesis::NemesisError::new(
+                "mawu::lexers::json_lexer",
                 MawuInternalError::UnableToLockMasterMutex,
             ))
         };
@@ -36,7 +37,7 @@ pub fn json_lexer(file_contents: VecDeque<char>) -> Result<XffValue, MawuError> 
     }
 }
 
-fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<XffValue, MawuError> {
+fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<XffValue, nemesis::NemesisError> {
     while file_contents.front().is_some() {
         let this_char = file_contents.pop_front().unwrap();
         // Ignore whitespace
@@ -60,9 +61,10 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
                 && file_contents.get(1) == Some(&'n')
         {
             // NaN
-            return Err(MawuError::JsonError(JsonError::ParseError(
-                JsonParseError::InvalidNumber("NaN".to_string()),
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::json_lexer",
+                JsonError::ParseError(JsonParseError::InvalidNumber("NaN".to_string())),
+            ));
         } else if this_char == 'I'
             && file_contents.front() == Some(&'n')
             && file_contents.get(1) == Some(&'f')
@@ -71,9 +73,10 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
                 && file_contents.get(1) == Some(&'f')
         {
             // Infinity
-            return Err(MawuError::JsonError(JsonError::ParseError(
-                JsonParseError::InvalidNumber("Infinity".to_string()),
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::json_lexer",
+                JsonError::ParseError(JsonParseError::InvalidNumber("Infinity".to_string())),
+            ));
         } else if this_char == 't'
             && file_contents.front() == Some(&'r')
             && file_contents.get(1) == Some(&'u')
@@ -108,9 +111,10 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
             return Ok(XffValue::Null);
         } else if this_char == '}' || this_char == ']' || this_char == ',' || this_char == ':' {
             // Invalid JSON Grammar
-            return Err(MawuError::JsonError(JsonError::ParseError(
-                JsonParseError::InvalidStructuralToken(this_char.to_string()),
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::json_lexer",
+                JsonError::ParseError(JsonParseError::InvalidStructuralToken(this_char.to_string())),
+            ));
         } else if this_char == '\"' {
             // string
             return json_string_lexer(file_contents);
@@ -126,18 +130,20 @@ fn json_value_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
             );
         }
         // Invalid JSON Grammar
-        return Err(MawuError::JsonError(JsonError::ParseError(
-            JsonParseError::InvalidCharacter(this_char.to_string()),
-        )));
+        return Err(nemesis::NemesisError::new(
+            "mawu::lexers::json_lexer",
+            JsonError::ParseError(JsonParseError::InvalidCharacter(this_char.to_string())),
+        ));
     }
-    Err(MawuError::JsonError(JsonError::ParseError(
-        JsonParseError::UnexpectedEndOfFile,
-    )))
+    Err(nemesis::NemesisError::new(
+        "mawu::lexers::json_lexer",
+        JsonError::ParseError(JsonParseError::UnexpectedEndOfFile),
+    ))
 }
 
 fn json_object_lexer(
     file_contents: &mut MutexGuard<VecDeque<char>>,
-) -> Result<XffValue, MawuError> {
+) -> Result<XffValue, nemesis::NemesisError> {
     let mut binding_object: Object = Default::default();
     while file_contents.front() != Some(&'}') && file_contents.front().is_some() {
         if is_whitespace(file_contents.front().unwrap()) {
@@ -158,22 +164,24 @@ fn json_object_lexer(
             let value = json_value_lexer(file_contents)?;
             binding_object.insert(key, value);
         } else {
-            return Err(MawuError::JsonError(JsonError::ParseError(
-                JsonParseError::ExpectedColon,
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::json_lexer",
+                JsonError::ParseError(JsonParseError::ExpectedColon),
+            ));
         }
     }
     if file_contents.front() == Some(&'}') {
         let _ = file_contents.pop_front();
         Ok(XffValue::Object(binding_object))
     } else {
-        Err(MawuError::JsonError(JsonError::ParseError(
-            JsonParseError::ExpectedEndOfObject,
-        )))
+        Err(nemesis::NemesisError::new(
+            "mawu::lexers::json_lexer",
+            JsonError::ParseError(JsonParseError::ExpectedEndOfObject),
+        ))
     }
 }
 
-fn json_array_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<XffValue, MawuError> {
+fn json_array_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<XffValue, nemesis::NemesisError> {
     let mut binding_array: Array = Default::default();
     while file_contents.front() != Some(&']') && file_contents.front().is_some() {
         if is_whitespace(file_contents.front().unwrap()) {
@@ -199,7 +207,7 @@ fn json_array_lexer(file_contents: &mut MutexGuard<VecDeque<char>>) -> Result<Xf
 
 fn json_string_lexer(
     file_contents: &mut MutexGuard<VecDeque<char>>,
-) -> Result<XffValue, MawuError> {
+) -> Result<XffValue, nemesis::NemesisError> {
     let mut string: String = Default::default();
     loop {
         if let Some(character) = file_contents.pop_front() {
@@ -224,11 +232,12 @@ fn json_string_lexer(
                     if is_json_string_terminator_token(file_contents.front()) {
                         return Ok(XffValue::from(string));
                     }
-                    return Err(MawuError::JsonError(JsonError::ParseError(
-                        JsonParseError::UnexpectedCharacter(
+                    return Err(nemesis::NemesisError::new(
+                        "mawu::lexers::json_lexer",
+                        JsonError::ParseError(JsonParseError::UnexpectedCharacter(
                             file_contents.front().unwrap().to_string(),
-                        ),
-                    )));
+                        )),
+                    ));
                 }
             }
             // Escape character
@@ -273,11 +282,12 @@ fn json_string_lexer(
                                 }
                                 string.push_str(&out);
                             } else {
-                                return Err(MawuError::JsonError(JsonError::ParseError(
-                                    JsonParseError::InvalidEscapeSequence(format!(
+                                return Err(nemesis::NemesisError::new(
+                                    "mawu::lexers::json_lexer",
+                                    JsonError::ParseError(JsonParseError::InvalidEscapeSequence(format!(
                                         "{character}{next_char}"
-                                    )),
-                                )));
+                                    ))),
+                                ));
                             }
                             continue;
                         }
@@ -298,24 +308,27 @@ fn json_string_lexer(
                     } else if next_char == '\"' {
                         string.push('"');
                     } else {
-                        Err(MawuError::JsonError(JsonError::ParseError(
-                            JsonParseError::InvalidEscapeSequence(format!(
+                        return Err(nemesis::NemesisError::new(
+                            "mawu::lexers::json_lexer",
+                            JsonError::ParseError(JsonParseError::InvalidEscapeSequence(format!(
                                 "{character}{next_char}"
-                            )),
-                        )))?;
+                            ))),
+                        ));
                     }
                 } else {
-                    Err(MawuError::JsonError(JsonError::ParseError(
-                        JsonParseError::UnexpectedEndOfFile,
-                    )))?;
+                    return Err(nemesis::NemesisError::new(
+                        "mawu::lexers::json_lexer",
+                        JsonError::ParseError(JsonParseError::UnexpectedEndOfFile),
+                    ));
                 }
             // Only space is accepted as whitespace in JSON, the rest has to be escaped
             } else if character == ' ' {
                 string.push(' ');
             } else if character == '\"' {
-                return Err(MawuError::JsonError(JsonError::ParseError(
-                    JsonParseError::InvalidEscapeSequence(format!("{character}")),
-                )));
+                return Err(nemesis::NemesisError::new(
+                    "mawu::lexers::json_lexer",
+                    JsonError::ParseError(JsonParseError::InvalidEscapeSequence(format!("{character}"))),
+                ));
             } else {
                 string.push(character);
             }
@@ -326,7 +339,7 @@ fn json_string_lexer(
 fn json_number_lexer(
     file_contents: &mut MutexGuard<VecDeque<char>>,
     first_digit: Option<char>,
-) -> Result<XffValue, MawuError> {
+) -> Result<XffValue, nemesis::NemesisError> {
     let mut out: String = Default::default();
     if let Some(digit) = first_digit {
         out.push(digit);
@@ -347,17 +360,19 @@ fn json_number_lexer(
             } else if is_digit(file_contents.front().unwrap())? {
                 out.push('+');
             } else {
-                return Err(MawuError::JsonError(JsonError::ParseError(
-                    JsonParseError::InvalidCharacter(this_char.to_string()),
-                )));
+                return Err(nemesis::NemesisError::new(
+                    "mawu::lexers::json_lexer",
+                    JsonError::ParseError(JsonParseError::InvalidCharacter(this_char.to_string())),
+                ));
             }
         } else if is_end_of_primitive_value(this_char) {
             file_contents.push_front(this_char);
             break;
         } else {
-            return Err(MawuError::JsonError(JsonError::ParseError(
-                JsonParseError::InvalidCharacter(this_char.to_string()),
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::json_lexer",
+                JsonError::ParseError(JsonParseError::InvalidCharacter(this_char.to_string())),
+            ));
         }
     }
 
@@ -375,9 +390,10 @@ fn json_number_lexer(
         return Ok(XffValue::Number(Number::Integer(i as isize)));
     }
 
-    Err(MawuError::JsonError(JsonError::ParseError(
-        JsonParseError::InvalidNumber(out),
-    )))
+    Err(nemesis::NemesisError::new(
+        "mawu::lexers::json_lexer",
+        JsonError::ParseError(JsonParseError::InvalidNumber(out)),
+    ))
 }
 
 #[test]
