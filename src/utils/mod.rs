@@ -1,6 +1,7 @@
 use std::char::{self, decode_utf16};
 
-use crate::errors::{MawuError, MawuInternalError};
+use crate::errors::MawuInternalError;
+use nemesis::NemesisError;
 
 pub mod file_handling;
 
@@ -33,11 +34,12 @@ pub fn is_newline(s: &char) -> bool {
 /// ## Returns
 /// `Ok((String, bool))` if the string is successfully unescaped, `Err(MawuError)` otherwise
 /// the boolean is `true` if the `next_codepoint` was used, `false` otherwise
-pub fn unescape_unicode(s: &str, next_codepoint: &str) -> Result<(String, bool), MawuError> {
+pub fn unescape_unicode(s: &str, next_codepoint: &str) -> Result<(String, bool), NemesisError> {
     if let Ok(out) = my_unescape_unicode_handler(s.to_string()) {
         Ok((out, false))
     } else if next_codepoint.is_empty() {
-        Err(MawuError::InternalError(
+        Err(NemesisError::new(
+            "mawu::utils",
             MawuInternalError::UnableToUnescapeUnicode(s.to_string()),
         ))
     } else {
@@ -49,14 +51,15 @@ pub fn unescape_unicode(s: &str, next_codepoint: &str) -> Result<(String, bool),
         if let Ok(c) = out {
             Ok((c.to_string(), true))
         } else {
-            Err(MawuError::InternalError(
+            Err(NemesisError::new(
+                "mawu::utils",
                 MawuInternalError::UnableToUnescapeUnicode(s.to_string()),
             ))
         }
     }
 }
 
-fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
+fn my_unescape_unicode_handler(s: String) -> Result<String, NemesisError> {
     let mut unicode_value = 0u32;
     for char in s.chars() {
         if let Some(d) = char.to_digit(0x10) {
@@ -68,13 +71,15 @@ fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
             unicode_value = (unicode_value << 4) + d;
             // Check if the unicode value is above 0x10FFFF (the maximum value of a unicode codepoint)
             if unicode_value > 0x10FFFF {
-                return Err(MawuError::InternalError(
+                return Err(NemesisError::new(
+                    "mawu::utils",
                     MawuInternalError::UnableToUnescapeUnicode(s.clone()),
                 ));
             }
         } else {
             // If the character is not a digit, it is an error!
-            return Err(MawuError::InternalError(
+            return Err(NemesisError::new(
+                "mawu::utils",
                 MawuInternalError::UnableToUnescapeUnicode(s.clone()),
             ));
         }
@@ -84,7 +89,8 @@ fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
     if let Some(c) = possible_char {
         Ok(c.to_string())
     } else {
-        Err(MawuError::InternalError(
+        Err(NemesisError::new(
+            "mawu::utils",
             MawuInternalError::UnableToUnescapeUnicode(s.clone()),
         ))
     }
@@ -97,7 +103,7 @@ fn my_unescape_unicode_handler(s: String) -> Result<String, MawuError> {
 ///
 /// ## Errors
 /// `MawuError::InternalError` if the string has no characters
-pub fn is_digit(c: &char) -> Result<bool, MawuError> {
+pub fn is_digit(c: &char) -> Result<bool, NemesisError> {
     // This if loop has proven to be faster than the char method `is_digit` by a very slight
     // margin. But it is faster! (Using `match` is slower than both `if` and `char` methods)
     Ok(c.is_ascii_digit())
