@@ -1,47 +1,11 @@
-use std::{fmt, result};
+use std::result;
 
 /// Module holding all possible csv errors
 pub mod csv_error;
 /// Module holding all possible json errors
 pub mod json_error;
 
-#[derive(Debug)]
-/// `MawuError` wraps all errors that can occur in Mawu.
-/// These are mainly `IoError`'s and parsing errors.
-pub enum MawuError {
-    /// A wrapper for `std::io::Error` only used for file handling
-    IoError(std::io::Error),
-    /// A wrapper for `csv::Error` containing all errors for CSV
-    CsvError(csv_error::CsvError),
-    /// A wrapper for `json::Error` containing all errors for JSON
-    JsonError(json_error::JsonError),
-    /// A wrapper for internal errors. If you ever see this, please file an issue.
-    InternalError(MawuInternalError),
-}
-
-pub type Result<T> = result::Result<T, MawuError>;
-
-impl fmt::Display for MawuError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            MawuError::IoError(ref e) => e.fmt(f),
-            MawuError::CsvError(ref e) => e.fmt(f),
-            MawuError::JsonError(ref e) => e.fmt(f),
-            MawuError::InternalError(ref e) => e.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for MawuError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match *self {
-            MawuError::IoError(ref e) => Some(e),
-            MawuError::CsvError(ref e) => Some(e),
-            MawuError::JsonError(ref e) => Some(e),
-            MawuError::InternalError(ref e) => Some(e),
-        }
-    }
-}
+pub type Result<T> = result::Result<T, nemesis::NemesisError>;
 
 #[derive(Debug)]
 /// Internal errors, If you ever see this, please file an issue.
@@ -56,8 +20,8 @@ pub enum MawuInternalError {
     NotUTF8(String),
 }
 
-impl fmt::Display for MawuInternalError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for MawuInternalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             MawuInternalError::UnableToLockMasterMutex => write!(f, "Unable to lock mutex"),
             MawuInternalError::StringWithNoChars(ref s) => write!(f, "String with no chars: {s}"),
