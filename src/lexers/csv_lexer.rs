@@ -5,15 +5,12 @@ use std::{
 };
 
 use crate::{
-    errors::{
-        csv_error::{CsvError, CsvParseError},
-        MawuError,
-    },
+    errors::csv_error::{CsvError, CsvParseError},
     mawu_value::MawuValue,
     utils::{is_newline, xff_from_string_auto},
 };
 
-pub fn headed(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
+pub fn headed(file_contents: VecDeque<char>) -> Result<MawuValue, nemesis::NemesisError> {
     let (head, left_content) = make_head(file_contents)?;
     let body = parse_csv_body(left_content, head.len())?;
     let mut out: Vec<HashMap<String, XffValue>> = Default::default();
@@ -24,16 +21,17 @@ pub fn headed(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
                 tmp_bind.insert(head[index].clone(), value.clone());
             }
         } else {
-            return Err(MawuError::CsvError(CsvError::ParseError(
-                CsvParseError::ExtraValue(format!("{entry:?}")),
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::csv_lexer",
+                CsvError::ParseError(CsvParseError::ExtraValue(format!("{entry:?}"))),
+            ));
         }
         out.push(tmp_bind);
     }
     Ok(MawuValue::CSVObject(out))
 }
 
-pub fn headless(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
+pub fn headless(file_contents: VecDeque<char>) -> Result<MawuValue, nemesis::NemesisError> {
     let (head, left_content) = make_head(file_contents)?;
     let mut body = parse_csv_body(left_content, head.len())?;
     body.insert(
@@ -48,7 +46,7 @@ pub fn headless(file_contents: VecDeque<char>) -> Result<MawuValue, MawuError> {
 fn parse_csv_body(
     mut csv_body: VecDeque<char>,
     head_length: usize,
-) -> Result<Vec<Vec<XffValue>>, MawuError> {
+) -> Result<Vec<Vec<XffValue>>, nemesis::NemesisError> {
     let mut out: Vec<Vec<XffValue>> = Default::default();
     let mut row_data: Vec<String> = Default::default();
     let mut last_char = None;
@@ -161,7 +159,7 @@ fn parse_csv_body(
 
 fn make_head(
     mut file_contents: VecDeque<char>,
-) -> Result<(Vec<String>, VecDeque<char>), MawuError> {
+) -> Result<(Vec<String>, VecDeque<char>), nemesis::NemesisError> {
     let mut head_done = false;
     let mut head_out: Vec<String> = Default::default();
     while !head_done {
@@ -190,14 +188,16 @@ fn make_head(
             } else {
                 let mut value: String = content.to_string();
                 while file_contents.front() != Some(&',')
-                    && !is_newline(file_contents.front().ok_or(MawuError::CsvError(
+                    && !is_newline(file_contents.front().ok_or_else(|| nemesis::NemesisError::new(
+                        "mawu::lexers::csv_lexer",
                         CsvError::ParseError(CsvParseError::UnexpectedNewline),
                     ))?)
                 {
                     if let Some(t) = file_contents.pop_front() {
                         let mut entry = t.to_string();
                         while file_contents.front() != Some(&',')
-                            && !is_newline(file_contents.front().ok_or(MawuError::CsvError(
+                            && !is_newline(file_contents.front().ok_or_else(|| nemesis::NemesisError::new(
+                                "mawu::lexers::csv_lexer",
                                 CsvError::ParseError(CsvParseError::UnrecognizedHeader(
                                     String::new(),
                                 )),
@@ -218,9 +218,10 @@ fn make_head(
                 .iter()
                 .map(|s| format!("{s}"))
                 .collect::<String>();
-            return Err(MawuError::CsvError(CsvError::ParseError(
-                CsvParseError::UnrecognizedHeader(t),
-            )));
+            return Err(nemesis::NemesisError::new(
+                "mawu::lexers::csv_lexer",
+                CsvError::ParseError(CsvParseError::UnrecognizedHeader(t)),
+            ));
         }
     }
     if file_contents.front() == Some(&'\n') {
