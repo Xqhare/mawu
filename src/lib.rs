@@ -1,4 +1,5 @@
 //! # Mawu
+//!
 //! A JSON and CSV serialization and deserialization library written in rust.
 //!
 //! Mawu, named after the ancient creator goddess Mawu in West African mythology, offers a JSON and CSV serialization and deserialization library implementing the rfc4180, rfc8259 and the ECMA-404 standard.
@@ -8,6 +9,7 @@
 //! ***This is a hobbyist repo badly reinventing the wheel and not ready for production use.***
 //!
 //! ## Features
+//!
 //! - Simple
 //! - Type aware
 //! - Supports both CSV and JSON
@@ -65,6 +67,7 @@
 //! ```
 //!
 //! ## CSV Serialization Notes
+//!
 //! When serializing to CSV:
 //! - `MawuValue::Object`, `MawuValue::OrderedObject`, and `MawuValue::Table` can be used as the root of the structure.
 //! - Deeply nested structures (Arrays, Objects within fields) are serialized as strings using a simplified format.
@@ -72,6 +75,7 @@
 //! - There is no hard limit on depth, but complex nested structures may become difficult to read or parse back from CSV.
 //!
 //! ## `MawuValue`
+//!
 //! In the new version of Mawu, `MawuValue` is used exclusively for CSV data.
 //! It serves as a container for either a headed CSV (`CSVObject`) or a headless CSV (`CSVArray`),
 //! wrapping `athena::XffValue` for the individual fields.
@@ -80,6 +84,7 @@
 //! standardized way to interact with JSON structures.
 //!
 //! ## `MawuContents`
+//!
 //! To maintain a unified writing API, the `MawuContents` enum is used to wrap either
 //! `XffValue` (for JSON) or `MawuValue` (for CSV) when calling `write` or `write_pretty`.
 //!
@@ -102,11 +107,9 @@ pub mod read {
     use athena::XffValue;
     use std::path::Path;
 
-    use crate::{
-        lexers::{csv_lexer, json_lexer},
-        mawu_value::MawuValue,
-        utils::file_handling,
-    };
+    #[cfg(feature = "csv")]
+    use crate::{lexers::csv_lexer, mawu_value::MawuValue};
+    use crate::{lexers::json_lexer, utils::file_handling};
     use nemesis::NemesisError;
 
     /// Reads a headed CSV file and returns a `MawuValue::CSVObject` or an error if the file could not be read or parsed.
@@ -118,6 +121,7 @@ pub mod read {
     ///
     /// # Errors
     /// Only returns `NemesisError`'s
+    #[cfg(feature = "csv")]
     pub fn csv_headed<T: AsRef<Path>>(path: T) -> Result<MawuValue, NemesisError> {
         csv_lexer::headed(file_handling::read_file(path)?)
     }
@@ -131,6 +135,7 @@ pub mod read {
     ///
     /// # Errors
     /// Only returns `NemesisError`'s
+    #[cfg(feature = "csv")]
     pub fn csv_headless<T: AsRef<Path>>(path: T) -> Result<MawuValue, NemesisError> {
         csv_lexer::headless(file_handling::read_file(path)?)
     }
@@ -147,10 +152,10 @@ pub mod read {
     }
 }
 
+#[cfg(feature = "csv")]
+use crate::serializers::csv_serializer;
 use crate::{
-    mawu_value::MawuValue,
-    serializers::{csv_serializer, json_serializer},
-    utils::file_handling::write_file,
+    mawu_value::MawuValue, serializers::json_serializer, utils::file_handling::write_file,
 };
 use nemesis::NemesisError;
 use std::path::Path;
@@ -181,7 +186,10 @@ impl From<MawuValue> for MawuContents {
 /// ## Arguments
 /// * `path` - The path to the file, relative or absolute
 /// * `contents` - The contents of the file
-pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(path: T, contents: C) -> Result<(), NemesisError> {
+pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(
+    path: T,
+    contents: C,
+) -> Result<(), NemesisError> {
     write_pretty(path, contents, 0)
 }
 
@@ -192,6 +200,7 @@ pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(path: T, contents: C) -> Res
 /// * `path` - The path to the file, relative or absolute
 /// * `contents` - The contents of the file
 /// * `space` - The number of spaces to use for indentation
+#[cfg(feature = "csv")]
 pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
     path: T,
     contents: C,
@@ -223,9 +232,33 @@ pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
     }
 }
 
+/// Writes a pretty printed file with the given contents.
+/// Writes a CSV-file if the contents are `MawuContents::Csv` and a JSON-file if the contents are `MawuContents::Json`.
+///
+/// ## Arguments
+/// * `path` - The path to the file, relative or absolute
+/// * `contents` - The contents of the file
+/// * `space` - The number of spaces to use for indentation
+#[cfg(not(feature = "csv"))]
+pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
+    path: T,
+    contents: C,
+    spaces: u8,
+) -> Result<(), NemesisError> {
+    let contents = contents.into();
+    match contents {
+        MawuContents::Csv(_) => Err(NemesisError::new(
+            "mawu::write_pretty",
+            "CSV serialization not enabled; Enable the 'csv' feature.",
+        )),
+        MawuContents::Json(v) => write_file(path, json_serializer::serialize_json(v, spaces, 0)?),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "csv")]
     use std::collections::HashMap;
 
     #[test]
@@ -293,6 +326,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "csv")]
     fn write_csv() {
         let path_to_file = "csv_output_pretty2.csv";
 

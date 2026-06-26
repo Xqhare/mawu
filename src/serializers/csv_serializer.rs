@@ -1,7 +1,5 @@
 use crate::{
-    errors::{
-        csv_error::{CsvError, CsvWriteError},
-    },
+    errors::csv_error::{CsvError, CsvWriteError},
     mawu_value::MawuValue,
     utils::make_whitespace,
 };
@@ -48,7 +46,11 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, nemesis::N
                 if i != 0 {
                     out.push(',');
                 }
-                out.push_str(&format!("{}:{}", k, serialize_csv_value(v.clone(), spaces)?));
+                out.push_str(&format!(
+                    "{}:{}",
+                    k,
+                    serialize_csv_value(v.clone(), spaces)?
+                ));
             }
             out.push('}');
             Ok(out)
@@ -59,7 +61,11 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, nemesis::N
                 if i != 0 {
                     out.push(',');
                 }
-                out.push_str(&format!("{}:{}", k, serialize_csv_value(v.clone(), spaces)?));
+                out.push_str(&format!(
+                    "{}:{}",
+                    k,
+                    serialize_csv_value(v.clone(), spaces)?
+                ));
             }
             out.push('}');
             Ok(out)
@@ -108,7 +114,11 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, nemesis::N
             out.push(']');
             Ok(out)
         }
-        XffValue::CommandCharacter(c) => Ok(format!("{}\"0x{:02x}\"", make_whitespace(spaces), c.as_u8())),
+        XffValue::CommandCharacter(c) => Ok(format!(
+            "{}\"0x{:02x}\"",
+            make_whitespace(spaces),
+            c.as_u8()
+        )),
         XffValue::ArrayCmdChar(ac) => {
             let mut out = format!("{}[", make_whitespace(spaces));
             for (i, c) in ac.iter().enumerate() {
@@ -232,7 +242,10 @@ pub fn serialize_csv_headed(value: MawuValue, spaces: u8) -> Result<String, neme
     }
 }
 
-pub fn serialize_csv_unheaded(value: MawuValue, spaces: u8) -> Result<String, nemesis::NemesisError> {
+pub fn serialize_csv_unheaded(
+    value: MawuValue,
+    spaces: u8,
+) -> Result<String, nemesis::NemesisError> {
     // Input == Vec<Vec<XffValue>>
     let rows = if let MawuValue::CSVArray(v) = value {
         v

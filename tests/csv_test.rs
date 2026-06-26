@@ -1,3 +1,4 @@
+#[cfg(feature = "csv")]
 #[cfg(test)]
 mod csv_tests {
 

@@ -128,8 +128,10 @@ pub fn is_json_string_terminator_token(c: Option<&char>) -> bool {
     *c == ':' || *c == ',' || *c == '}' || *c == ']'
 }
 
+#[cfg(feature = "csv")]
 use athena::XffValue;
 /// Automatically converts a string into an `XffValue` (Number, Boolean, Null or String)
+#[cfg(feature = "csv")]
 pub fn xff_from_string_auto(s: String) -> XffValue {
     if s.is_empty() {
         XffValue::Null

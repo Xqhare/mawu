@@ -1,6 +1,7 @@
 use std::result;
 
 /// Module holding all possible csv errors
+#[cfg(feature = "csv")]
 pub mod csv_error;
 /// Module holding all possible json errors
 pub mod json_error;

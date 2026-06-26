@@ -4,6 +4,9 @@ authors = ["Xqhare"]
 version = "1.2.0"
 edition = "2021"
 
+[features]
+csv = []
+
 [dependencies]
 athena = { git = "https://github.com/Xqhare/athena"}
 nemesis = { git = "https://github.com/Xqhare/nemesis"}
