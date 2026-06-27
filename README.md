@@ -1,13 +1,17 @@
-# Mawu
+# `Mawu`
+
 A JSON and CSV serialization and deserialization library written in rust.
 
-Mawu, named after the ancient creator goddess Mawu in West African mythology, offers a JSON and CSV serialization and deserialization library implementing the rfc4180, rfc8259 and the ECMA-404 standard.
+`Mawu`, named after the ancient creator goddess `Mawu` in West African mythology, offers a JSON and CSV serialization and deserialization library implementing the rfc4180, rfc8259 and the ECMA-404 standard.
 
-Mawu is a zero dependency library and supports 64bit systems only.
+`Mawu` is a zero dependency library and supports 64bit systems only.
 
-***This is a hobbyist repo badly reinventing the wheel and not ready for production use.*** 
+It follows my "All code written by me or part of rust's standard library and libc" philosophy.
+You can learn more about that [here](https://blog.xqhare.net/posts/why_solve_problems/).
 
 ## Features
+
+- _**No dependencies**_: All code is written by me or part of std.
 - Simple
 - Type aware
 - Supports both CSV and JSON
@@ -19,15 +23,31 @@ Mawu is a zero dependency library and supports 64bit systems only.
 - Tries to stay as close to the rfc4180, rfc8259 and ECMA-404 standard as possible for maximum interoperability
 - Actually written by a human
 
-## Using Mawu
+## Roadmap
+
+`Mawu` uses my [nomos](https://github.com/xqhare/nomos) project management system.
+
+The roadmap for this project can be found in the [nomos.md](nomos.md) file.
+
+All nomos files follow the syntax defined [here](https://github.com/Xqhare/nomos/blob/master/spec/).
+
+## Naming
+
+As with all my projects, `Mawu` is named after an ancient deity.
+Learn more about my naming scheme [here](https://blog.xqhare.net/posts/explaining_the_pantheon/).
+
+## Using `Mawu`
+
 Start by adding this repository to your `Cargo.toml`.
+
 ```toml
 [dependencies]
 mawu = { git = "https://github.com/Xqhare/mawu" }
 ```
 
 ### Reading JSON
-Mawu now returns `athena::XffValue` directly when parsing JSON.
+
+`Mawu` now returns `athena::XffValue` directly when parsing JSON.
 
 ```rust
 use mawu::read::json;
@@ -42,6 +62,9 @@ if xff_value.is_object() {
 ```
 
 ### Reading CSV
+
+CSV support is gated behind the `csv` feature flag.
+
 CSV data is returned wrapped in a `MawuValue`.
 
 ```rust
@@ -59,7 +82,8 @@ if csv_value.is_csv_object() {
 ```
 
 ### Writing
-To maintain a unified writing API, use the `MawuContents` enum to wrap your data.
+
+`Mawu` has a unified writing API, use the `MawuContents` enum to wrap your data.
 
 ```rust
 use mawu::{write, write_pretty, MawuContents, MawuValue};
