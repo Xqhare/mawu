@@ -2,7 +2,7 @@
 name = "mawu"
 authors = ["Xqhare"]
 version = "1.3.0"
-edition = "2021"
+edition = "2024"
 
 [features]
 csv = []
@@ -10,6 +10,7 @@ csv = []
 [dependencies]
 athena = { git = "https://github.com/Xqhare/athena"}
 nemesis = { git = "https://github.com/Xqhare/nemesis"}
+thoth = { git = "https://github.com/Xqhare/thoth"}
 
 [dev-dependencies]
 json = "0.12.4"

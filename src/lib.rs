@@ -20,7 +20,10 @@ pub mod read {
 
     #[cfg(feature = "csv")]
     use crate::{lexers::csv_lexer, mawu_value::MawuValue};
-    use crate::{lexers::json_lexer, utils::file_handling};
+    use crate::{
+        lexers::{json_lexer, toml_lexer},
+        utils::file_handling,
+    };
     use nemesis::NemesisError;
 
     /// Reads a headed CSV file and returns a `MawuValue::CSVObject` or an error if the file could not be read or parsed.
@@ -60,6 +63,10 @@ pub mod read {
     /// Only returns `NemesisError`'s
     pub fn json<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
         json_lexer::json_lexer(file_handling::read_file(path)?)
+    }
+
+    pub fn toml<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
+        toml_lexer::toml_lexer(file_handling::read_file_unicode_segment(path)?)
     }
 }
 

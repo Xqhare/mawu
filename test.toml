@@ -1,0 +1,212 @@
+# TOML 1.1.0 spec compliant full example
+
+# Key/Value pair in root table of file
+boolean = true
+bool2 = false
+"key.with.dots" = 0
+'single quoted key with spaces' = 1
+"ʎǝʞ" = "value"
+"" = "blank"              # VALID but discouraged
+# '' = 'blank' VALID but discouraged; Invalid here because 'blank' key would be defined twice
+another = "# This is not a comment"
+key = "value"
+bare_key = "value"
+bare-key = "value"
+1234 = "value"
+'quoted "value"' = "value"
+table.key = "value" # Can be used to define a table
+table.another = "value"
+"table".'yet."another" key' = "value"
+
+[dotted-keys] # Example of defining a table
+name = "Orange"
+physical.color = "orange"
+physical.shape = "round"
+site."google.com" = true
+
+[more-dotted-keys] # Example of defining a table
+fruit.name = "banana"       # this is best practice
+fruit. color = "yellow"     # same as fruit.color
+fruit . flavor = "banana"   # same as fruit.flavor
+
+[strings] # Example of defining a table
+basic = "This is a basic string"
+multiline = """This is a \
+               multiline string"""
+literal = 'C:\This is a literal string'
+multiline-literal = '''This is a multiline \
+                       literal!'''
+str = "I'm a string. \"You can quote me\". Name\tJos\xE9\nLocation\tSF."
+quot15 = '''Here are fifteen quotation marks: """""""""""""""'''
+
+# apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''  # INVALID
+apos15 = "Here are fifteen apostrophes: '''''''''''''''"
+
+# 'That,' she said, 'is still pointless.'
+str2 = ''''That,' she said, 'is still pointless.''''
+# What you see is what you get.
+winpath  = 'C:\Users\nodejs\templates'
+winpath2 = '\\ServerX\admin$\system32\'
+quoted   = 'Tom "Dubs" Preston-Werner'
+regex    = '<\i\c*\s*>'
+
+more = "\rtext\ffilee\b"
+
+[integers]
+standard = 100
+underscored = 100_000_000
+hexadecimal = 0x7b
+octal = 0o14
+binary = 0b1100100
+int1 = +99
+int2 = 42
+int3 = 0
+int4 = -17
+int5 = 1_000
+int6 = 5_349_221
+int7 = 53_49_221  # Indian number system grouping
+int8 = 1_2_3_4_5  # VALID but discouraged
+# hexadecimal with prefix `0x`
+hex1 = 0xDEADBEEF
+hex2 = 0xdeadbeef
+hex3 = 0xdead_beef
+
+# octal with prefix `0o`
+oct1 = 0o01234567
+oct2 = 0o755 # useful for Unix file permissions
+
+# binary with prefix `0b`
+bin1 = 0b11010110
+
+[[Infinity]]
+# infinity
+sf1 = inf  # positive infinity
+sf2 = +inf # positive infinity
+sf3 = -inf # negative infinity
+
+[[NaN]]
+# not a number
+sf4 = nan  # actual sNaN/qNaN encoding is implementation-specific
+sf5 = +nan # same as `nan`
+sf6 = -nan # valid, actual encoding is implementation-specific
+
+[floats]
+fractional = 100.00
+exponent = 1e3
+combination = 1.001e3
+# fractional
+flt0 = +4.04e+4
+flt1 = +1.0
+flt2 = 3.1415
+flt3 = -0.01
+
+# exponent
+flt4 = 5e+22
+flt5 = 1e06
+flt6 = -2E-2
+
+# both
+flt7 = 6.626e-34
+flt8 = 224_617.445_991_228
+
+[offset-datetimes] # RFC 3339
+example-1 = 2023-09-03T02:11:01Z
+example-2 = 2023-09-03T02:11:02-01:00
+example-3 = 2023-09-03T02:11:03.1234-01:00
+example-4 = 2023-09-03 02:11:05Z
+odt1 = 1979-05-27T07:32:00Z
+odt2 = 1979-05-27T00:32:00-07:00
+odt3 = 1979-05-27T00:32:00.5-07:00
+odt4 = 1979-05-27T00:32:00.999999-07:00
+odt5 = 1979-05-27 07:32:00Z
+odt6 = 1979-05-27 07:32Z
+odt7 = 1979-05-27 07:32-07:00
+
+[other-datetimes]
+# RFC 3339 without the timezone.
+local-datetime = 2023-09-03T02:10:00.987
+# RFC 3339 without the time.
+local-date = 2023-09-03
+# RFC 3339 without the date.
+local-time = 23:22:21.0123
+ldt1 = 1979-05-27T07:32:00
+ldt2 = 1979-05-27T07:32:00.5
+ldt3 = 1979-05-27T00:32:00.999999
+ldt4 = 1979-05-27T07:32
+ld1 = 1979-05-27
+lt1 = 07:32:00
+lt2 = 00:32:00.5
+lt3 = 00:32:00.999999
+lt4 = 07:32
+
+[arrays]
+basic-array = [1, 2, 3, 4, 5]
+nested-array = [[1, 2, 3], [4, 5, 6]]
+multi-line = [
+    "line 1",
+    "line 2",
+    "line 3",
+]
+integers = [ 1, 2, 3 ]
+colors = [ "red", "yellow", "green" ]
+nested_arrays_of_ints = [ [ 1, 2 ], [3, 4, 5] ]
+nested_mixed_array = [ [ 1, 2 ], ["a", "b", "c"] ]
+string_array = [ "all", 'strings', """are the same""", '''type''' ]
+empty_array = []
+# Mixed-type arrays are allowed
+numbers = [ 0.1, 0.2, 0.5, 1, 2, 5 ]
+contributors = [
+  "Foo Bar <foo@example.com>",
+  { name = "Baz Qux", email = "bazqux@example.com", url = "https://example.com/bazqux" }
+]
+integers2 = [
+  1, 2, 3
+]
+
+integers3 = [
+  1,
+  2, # this is ok
+]
+
+[nested.table.definition]
+some-val = 1
+
+["a quoted table name!"]
+unicode_4 = "\u03B4" # yields 'δ'
+
+[["an array of quoted tables"]]
+unicode_8 = "\U000003E7" # yields 'ϧ'
+
+[nested.table.definition.another.layer]
+nested.some-val = 1
+inline-table = {inline = "table"}
+multi-line-inline-table = {
+	name = {
+	  first = "Tom",
+	  last = "Preston-Werner",
+	}
+}
+empty_inline_table = {}
+points = [ { x = 1, y = 2, z = 3 },
+           { x = 7, y = 8, z = 9 },
+           { x = 2, y = 4, z = 8 } ]
+# This is the syntax for an array of tables
+
+[[array-of-tables]]
+w = 1
+
+[[array-of-tables]]
+# Empty tables within the array are allowed
+
+[[array-of-tables]]
+y = 1
+
+[[array-of-tables]]
+z = 1
+
+# [x] you
+# [x.y] don't
+# [x.y.z] need these
+[x.y.z.w] # for this to work
+
+[x] # defining a super-table afterward is ok
