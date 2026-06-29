@@ -37,6 +37,7 @@ literal = 'C:\This is a literal string'
 multiline-literal = '''This is a multiline \
                        literal!'''
 str = "I'm a string. \"You can quote me\". Name\tJos\xE9\nLocation\tSF."
+alt_str = """I'm a string. \"You can quote me\". Name\tJos\xE9\nLocation\tSF."""
 quot15 = '''Here are fifteen quotation marks: """""""""""""""'''
 
 # apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''  # INVALID
@@ -172,6 +173,7 @@ integers3 = [
 some-val = 1
 
 ["a quoted table name!"]
+unicode_2 = "\x20" # yields ' ' space
 unicode_4 = "\u03B4" # yields 'δ'
 
 [["an array of quoted tables"]]

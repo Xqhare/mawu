@@ -1,4 +1,9 @@
-use athena::{Object, XffValue};
+use athena::{
+    Array, LocalDate, LocalDateTime, LocalTime, Number, Object,
+    XffValue::{self, LocalDate, LocalDateTime},
+    xff,
+};
+use horae::Utc;
 use nemesis::NemesisError;
 
 use crate::errors::toml_error::TomlParseError;
@@ -79,6 +84,7 @@ fn handle_value_equals_sign(
             "mawu::lexers::toml_lexer",
             TomlParseError::UnexpectedNewline,
         )
+        .add_ctx("Key requires a value.")
         .add_ctx(format!("Line number: {line_number}")));
     }
     Ok(())
@@ -98,9 +104,9 @@ fn parse_toml_value(
             break;
         }
         if &chars[*index] == "t" || &chars[*index] == "f" {
-            parse_toml_bool(chars, index, &mut out);
+            parse_toml_bool(chars, index, &mut out)?;
         } else if &chars[*index] == "\"" || &chars[*index] == "'" {
-            parse_toml_string(chars, index, &mut out);
+            parse_toml_string(chars, index, line_number, &mut out)?;
         } else if &chars[*index] == "n"
             || &chars[*index] == "i"
             || &chars[*index] == "+"
@@ -109,9 +115,10 @@ fn parse_toml_value(
         {
             parse_toml_number_or_datetime(chars, index, &mut out, *line_number)?;
         } else if &chars[*index] == "[" {
-            parse_toml_array(chars, index, &mut out);
+            *index = index.saturating_add(1);
+            parse_toml_array(chars, index, &mut out, line_number)?;
         } else if &chars[*index] == "{" {
-            parse_toml_table(chars, index, &mut out);
+            parse_toml_table(chars, index, &mut out, line_number)?;
         } else {
             return Err(NemesisError::new(
                 "mawu::lexers::toml_lexer",
@@ -127,6 +134,301 @@ fn parse_toml_value(
     Ok(out.unwrap())
 }
 
+fn parse_toml_array(
+    chars: &Vec<String>,
+    index: &mut usize,
+    out: &mut Option<XffValue>,
+    line_number: &mut usize,
+) -> Result<(), NemesisError> {
+    if index.saturating_add(1) >= chars.len() {
+        return Err(NemesisError::new(
+            "mawu::lexers::toml_lexer",
+            TomlParseError::UnexpectedEndOfFile,
+        )
+        .add_ctx("Inside an array, but reached the end of the file.")
+        .add_ctx(format!("Line number: {line_number}")));
+    }
+    let mut array = Array::new();
+    let (it_whitespace, skip, skip_lines) =
+        is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+    if it_whitespace {
+        *index = index.saturating_add(skip);
+        *line_number = line_number.saturating_add(skip_lines);
+    }
+    if &chars[*index] == "]" {
+        *index = index.saturating_add(1);
+        out.insert(xff!(array));
+        return Ok(());
+    }
+    while index.saturating_add(1) < chars.len() {
+        if &chars[*index] == "]" {
+            *index = index.saturating_add(1);
+            break;
+        }
+        array.push(parse_toml_value(chars, index, line_number)?);
+        if &chars[*index] == "," {
+            *index = index.saturating_add(1);
+        }
+        let (is_whitespace, skip, skip_lines) =
+            is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+        if is_whitespace {
+            *index = index.saturating_add(skip);
+            *line_number = line_number.saturating_add(skip_lines);
+        }
+    }
+    out.insert(XffValue::Array(array));
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StringType {
+    Single,
+    Double,
+    TripleSingle,
+    TripleDouble,
+}
+
+fn parse_toml_string(
+    chars: &Vec<String>,
+    index: &mut usize,
+    line_number: &mut usize,
+    out: &mut Option<XffValue>,
+) -> Result<(), NemesisError> {
+    let str_type = {
+        if &chars[*index] == "'" {
+            if &chars[index.saturating_add(1)] == "'"
+                && &chars[index.saturating_add(2)] == "'"
+                && &chars[index.saturating_add(3)] == "'"
+            {
+                *index = index.saturating_add(3);
+                StringType::TripleSingle
+            } else {
+                *index = index.saturating_add(1);
+                StringType::Single
+            }
+        } else if &chars[*index] == "\"" {
+            if &chars[index.saturating_add(1)] == "\""
+                && &chars[index.saturating_add(2)] == "\""
+                && &chars[index.saturating_add(3)] == "\""
+            {
+                *index = index.saturating_add(3);
+                StringType::TripleDouble
+            } else {
+                *index = index.saturating_add(1);
+                StringType::Double
+            }
+        } else {
+            return Err(NemesisError::new(
+                "mawu::lexers::toml_lexer::parse_toml_string",
+                TomlParseError::UnexpectedCharacter(format!("Expected a string, but got: '{}'", chars[*index])),
+            ).add_ctx("Passed in invalid string type - Ensure it starts with either a single ' or \"; Or a triple \"\"\" or '''"));
+        }
+    };
+    let mut tmp_buf = String::with_capacity(64); // Arbitrary pre allocation
+
+    while index.saturating_add(1) < chars.len() {
+        match str_type {
+            StringType::Single => {
+                if &chars[*index] == "'" {
+                    *index = index.saturating_add(1);
+                    break;
+                } else {
+                    tmp_buf.push_str(&chars[*index]);
+                }
+            }
+            StringType::Double => {
+                handle_escaped_sequences(chars, index, &mut tmp_buf)?;
+                if &chars[*index] == "\"" {
+                    *index = index.saturating_add(1);
+                    break;
+                } else {
+                    tmp_buf.push_str(&chars[*index]);
+                }
+            }
+            StringType::TripleSingle => {
+                handle_multiline_cont(chars, index, line_number, &mut tmp_buf);
+                if &chars[*index] == "'"
+                    && index.saturating_add(4) < chars.len()
+                    && &chars[index.saturating_add(1)] == "'"
+                    && &chars[index.saturating_add(2)] == "'"
+                    && is_toml_whitespace(
+                        &chars[index.saturating_add(3)],
+                        &chars[index.saturating_add(4)],
+                    )
+                    .0
+                {
+                    *index = index.saturating_add(3);
+                    break;
+                } else {
+                    tmp_buf.push_str(&chars[*index]);
+                }
+            }
+            StringType::TripleDouble => {
+                handle_multiline_cont(chars, index, line_number, &mut tmp_buf);
+                handle_escaped_sequences(chars, index, &mut tmp_buf)?;
+                if &chars[*index] == "\""
+                    && index.saturating_add(3) < chars.len()
+                    && &chars[index.saturating_add(1)] == "\""
+                    && &chars[index.saturating_add(2)] == "\""
+                {
+                    *index = index.saturating_add(3);
+                    break;
+                }
+            }
+        }
+    }
+    *out = Some(XffValue::from(tmp_buf));
+    Ok(())
+}
+
+fn handle_multiline_cont(
+    chars: &Vec<String>,
+    index: &mut usize,
+    line_number: &mut usize,
+    tmp_buf: &mut String,
+) {
+    if &chars[*index] == "\\" && index.saturating_add(2) < chars.len() {
+        let (is_whitespace, skip, skip_lines) =
+            is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+        if is_whitespace {
+            tmp_buf.push('\n');
+            *index = index.saturating_add(skip);
+            *line_number = line_number.saturating_add(skip_lines);
+        }
+    }
+}
+
+fn handle_escaped_sequences(
+    chars: &Vec<String>,
+    index: &mut usize,
+    tmp_buf: &mut String,
+) -> Result<(), NemesisError> {
+    if index.saturating_add(1) < chars.len() && is_single_escaped_char(chars, index) {
+        *index = index.saturating_add(2);
+        tmp_buf.push_str(&chars[*index]);
+        tmp_buf.push_str(&chars[index.saturating_add(1)]);
+    } else if &chars[*index] == "\\" && index.saturating_add(1) < chars.len() {
+        match &chars[index.saturating_add(1)] {
+            "x" => {
+                if index.saturating_add(3) < chars.len() && is_hex_digit_range(chars, index, 2) {
+                    // U+00xx
+                    let mut u8: [u8; 2] = [0; 2];
+                    let hex = &chars[index.saturating_add(2)].to_string()
+                        + &chars[index.saturating_add(3)].to_string();
+                    u8[1] = u8::from_str_radix(&hex, 16).unwrap();
+                    tmp_buf.push_str(&String::from_utf8_lossy(&u8));
+                    *index = index.saturating_add(4);
+                } else {
+                    return Err(NemesisError::new(
+                                    "mawu::lexers::toml_lexer::parse_toml_string",
+                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)]))
+                                ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits"));
+                }
+            }
+            "u" => {
+                if index.saturating_add(5) < chars.len() && is_hex_digit_range(chars, index, 4) {
+                    // U+xxxx
+                    let mut u8 = [0; 2];
+                    let hex1 = &chars[index.saturating_add(2)].to_string()
+                        + &chars[index.saturating_add(3)].to_string();
+                    u8[0] = u8::from_str_radix(&hex1, 16).unwrap();
+                    let hex2 = &chars[index.saturating_add(4)].to_string()
+                        + &chars[index.saturating_add(5)].to_string();
+                    u8[1] = u8::from_str_radix(&hex2, 16).unwrap();
+                    tmp_buf.push_str(&String::from_utf8_lossy(&u8));
+                    *index = index.saturating_add(6);
+                } else {
+                    return Err(NemesisError::new(
+                                    "mawu::lexers::toml_lexer::parse_toml_string",
+                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '{}{}{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)], chars[index.saturating_add(4)], chars[index.saturating_add(5)]))
+                                ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\u' and is followed by four hex digits"));
+                }
+            }
+            "U" => {
+                if index.saturating_add(9) < chars.len() && is_hex_digit_range(chars, index, 8) {
+                    // U+xxxxxx
+                    let mut u8 = [0; 4];
+                    let hex1 = &chars[index.saturating_add(2)].to_string()
+                        + &chars[index.saturating_add(3)].to_string();
+                    u8[0] = u8::from_str_radix(&hex1, 16).unwrap();
+                    let hex2 = &chars[index.saturating_add(4)].to_string()
+                        + &chars[index.saturating_add(5)].to_string();
+                    u8[1] = u8::from_str_radix(&hex2, 16).unwrap();
+                    let hex3 = &chars[index.saturating_add(6)].to_string()
+                        + &chars[index.saturating_add(7)].to_string();
+                    u8[2] = u8::from_str_radix(&hex3, 16).unwrap();
+                    let hex4 = &chars[index.saturating_add(8)].to_string()
+                        + &chars[index.saturating_add(9)].to_string();
+                    u8[3] = u8::from_str_radix(&hex4, 16).unwrap();
+                    tmp_buf.push_str(&String::from_utf8_lossy(&u8));
+                    *index = index.saturating_add(10);
+                } else {
+                    return Err(NemesisError::new(
+                                    "mawu::lexers::toml_lexer::parse_toml_string",
+                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '{}{}{}{}{}{}{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)], chars[index.saturating_add(4)], chars[index.saturating_add(5)],chars[index.saturating_add(6)], chars[index.saturating_add(7)], chars[index.saturating_add(8)], chars[index.saturating_add(9)] ))
+                                ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\U' and is followed by eight hex digits"));
+                }
+            }
+            _ => {
+                return Err(NemesisError::new(
+                    "mawu::lexers::toml_lexer::parse_toml_string",
+                    TomlParseError::UnexpectedCharacter(format!(
+                        "Expected escaped unicode identifier (\\x, \\u, \\U), but got: '{}{}'",
+                        chars[*index],
+                        chars[index.saturating_add(1)]
+                    )),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_hex_digit_range(chars: &Vec<String>, index: &mut usize, until_index: usize) -> bool {
+    if index.saturating_add(until_index) < chars.len() {
+        for i in 1..until_index {
+            if !is_hex_digit(&chars[index.saturating_add(i)]) {
+                return false;
+            }
+        }
+        true
+    } else {
+        false
+    }
+}
+
+fn is_hex_digit(s: &str) -> bool {
+    for c in s.chars() {
+        if c.is_ascii_hexdigit() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Checks for `\\` followed by `\"`, `\\`, `\\b`, `\\t`, `\\n`, `\\f`, `\\r`, `\\e`
+///
+/// Returns true if the next chars match, false if not
+fn is_single_escaped_char(chars: &Vec<String>, index: &mut usize) -> bool {
+    if &chars[*index] == "\\" && index.saturating_add(1) < chars.len() {
+        if &chars[index.saturating_add(1)] == "\""
+            || &chars[index.saturating_add(1)] == "\\"
+            || &chars[index.saturating_add(1)] == "b"
+            || &chars[index.saturating_add(1)] == "t"
+            || &chars[index.saturating_add(1)] == "n"
+            || &chars[index.saturating_add(1)] == "f"
+            || &chars[index.saturating_add(1)] == "r"
+            || &chars[index.saturating_add(1)] == "e"
+        {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
 fn parse_toml_number_or_datetime(
     chars: &Vec<String>,
     index: &mut usize,
@@ -139,27 +441,21 @@ fn parse_toml_number_or_datetime(
         *index = index.saturating_add(1);
     }
     while index.saturating_add(1) < chars.len() {
-        if is_number(&chars[*index]) {
-            tmp_buf.push_str(&chars[*index]);
-            *index = index.saturating_add(1);
-            continue;
-        } else if chars[*index] == "o" || chars[*index] == "b" || chars[*index] == "x" {
-            parse_toml_number_base(chars, index, &mut tmp_buf);
-        } else if chars[*index] == "n" || chars[*index] == "i" {
-            parse_toml_number_inf_nan(chars, index, &mut tmp_buf);
-        } else if chars[*index] == "T"
-            || chars[*index] == "Z"
-            || chars[*index] == ":"
-            || chars[*index] == " "
-        {
+        if is_end_of_value(chars, index) {
+            break;
         } else {
-            // Allow +, -, ., e, E (but only one 'e' or 'E' or '.'. Also '+' or '-' only
-            // AFTER either 'e' or 'E')
-            // Ignore `_`
-            tmp_buf.push_str(&chars[*index]);
+            // just drop the underscore, accept everything else
+            if &chars[*index] != "_" {
+                tmp_buf.push_str(&chars[*index]);
+            }
         }
     }
-    if tmp_buf == "+" || tmp_buf == "-" {
+    if tmp_buf == "+"
+        || tmp_buf == "-"
+        || (tmp_buf.starts_with("0") && tmp_buf.len() != 1)
+        || tmp_buf.starts_with(".")
+        || tmp_buf.ends_with(".")
+    {
         return Err(NemesisError::new(
             "mawu::lexers::toml_lexer",
             TomlParseError::UnexpectedCharacter(format!(
@@ -170,8 +466,127 @@ fn parse_toml_number_or_datetime(
         .add_ctx("Numbers cannot only consist of a + or -.")
         .add_ctx(format!("Line number: {line_number}")));
     }
-    *out = Some(XffValue::from(tmp_buf));
-    Ok(())
+    if tmp_buf.contains("inf") || tmp_buf.contains("nan") {
+        match tmp_buf.as_str() {
+            "inf" | "+inf" => {
+                *out = Some(XffValue::Infinity);
+                return Ok(());
+            }
+            "-inf" => {
+                *out = Some(XffValue::NegInfinity);
+                return Ok(());
+            }
+            "nan" => {
+                *out = Some(XffValue::NaN);
+                return Ok(());
+            }
+            "+nan" => {
+                *out = Some(XffValue::PosNan);
+                return Ok(());
+            }
+            "-nan" => {
+                *out = Some(XffValue::NegNaN);
+                return Ok(());
+            }
+            _ => {
+                return Err(NemesisError::new(
+                    "mawu::lexers::toml_lexer",
+                    TomlParseError::UnexpectedCharacter(format!(
+                        "Expected either an infinity (+inf, inf or -inf) or a NaN (+nan, nan or -nan), but got: '{}'",
+                        chars[*index]
+                    )),
+                )
+                .add_ctx("Infinities and NaNs are case sensitive and may only have a leading sign.")
+                .add_ctx(format!("Line number: {line_number}")));
+            }
+        }
+    }
+    if tmp_buf.starts_with("0x") {
+        if let Ok(value) = u128::from_str_radix(&tmp_buf[2..], 16) {
+            *out = Some(XffValue::from(value));
+            return Ok(());
+        } else {
+            return Err(NemesisError::new(
+                "mawu::lexers::toml_lexer",
+                TomlParseError::UnexpectedCharacter(format!(
+                    "Expected a hex number, but got: '{}'",
+                    chars[*index]
+                )),
+            )
+            .add_ctx("Hex numbers always start with '0x'.")
+            .add_ctx(format!("Line number: {line_number}")));
+        }
+    } else if tmp_buf.starts_with("0b") {
+        if let Ok(value) = u128::from_str_radix(&tmp_buf[2..], 2) {
+            *out = Some(XffValue::from(value));
+            return Ok(());
+        } else {
+            return Err(NemesisError::new(
+                "mawu::lexers::toml_lexer",
+                TomlParseError::UnexpectedCharacter(format!(
+                    "Expected a binary number, but got: '{}'",
+                    chars[*index]
+                )),
+            )
+            .add_ctx("Binary numbers always start with '0b'.")
+            .add_ctx(format!("Line number: {line_number}")));
+        }
+    } else if tmp_buf.starts_with("0o") {
+        if let Ok(value) = u128::from_str_radix(&tmp_buf[2..], 8) {
+            *out = Some(XffValue::from(value));
+            return Ok(());
+        } else {
+            return Err(NemesisError::new(
+                "mawu::lexers::toml_lexer",
+                TomlParseError::UnexpectedCharacter(format!(
+                    "Expected an octal number, but got: '{}'",
+                    chars[*index]
+                )),
+            )
+            .add_ctx("Octal numbers always start with '0o'.")
+            .add_ctx(format!("Line number: {line_number}")));
+        }
+    }
+    if let Some(date_time) = Utc::from_rfc3339(&tmp_buf) {
+        *out = Some(date_time.to_xffvalue());
+        return Ok(());
+    }
+    if let Ok(local_date_time) = LocalDateTime::try_from(tmp_buf.as_str()) {
+        *out = Some(xff!(local_date_time));
+        return Ok(());
+    }
+    if let Ok(local_date) = LocalDate::try_from(tmp_buf.as_str()) {
+        *out = Some(xff!(local_date));
+        return Ok(());
+    }
+    if let Ok(local_time) = LocalTime::try_from(tmp_buf.as_str()) {
+        *out = Some(xff!(local_time));
+        return Ok(());
+    }
+    if let Ok(number) = Number::try_from(tmp_buf.as_str()) {
+        *out = Some(xff!(number));
+        return Ok(());
+    }
+    Err(NemesisError::new(
+        "mawu::lexers::toml_lexer",
+        TomlParseError::UnexpectedCharacter(format!(
+            "Expected a number, but got: '{}'",
+            chars[*index]
+        )),
+    )
+    .add_ctx("Unable to parse given stream as a number, or local_date_time, local_time or local_date, even though it looks like one.")
+    .add_ctx(format!("Line number: {line_number}")))
+}
+
+fn is_end_of_value(chars: &Vec<String>, index: &mut usize) -> bool {
+    if chars.len() <= *index {
+        true
+    } else {
+        is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]).0
+            || &chars[*index] == "]"
+            || &chars[*index] == "}"
+            || &chars[*index] == ","
+    }
 }
 
 /// Returns true if the string is a number (0-9)
@@ -179,7 +594,11 @@ fn is_number(s: &str) -> bool {
     s.chars().all(char::is_numeric)
 }
 
-fn parse_toml_bool(chars: &Vec<String>, index: &mut usize, out: &mut Option<XffValue>) {
+fn parse_toml_bool(
+    chars: &Vec<String>,
+    index: &mut usize,
+    out: &mut Option<XffValue>,
+) -> Result<(), NemesisError> {
     if &chars[*index] == "t"
         && index.saturating_add(3) < chars.len()
         && &chars[*index + 1] == "r"
@@ -187,6 +606,7 @@ fn parse_toml_bool(chars: &Vec<String>, index: &mut usize, out: &mut Option<XffV
         && &chars[*index + 3] == "e"
     {
         *out = Some(XffValue::from(true));
+        Ok(())
     } else if &chars[*index] == "f"
         && index.saturating_add(4) < chars.len()
         && &chars[*index + 1] == "a"
@@ -195,6 +615,16 @@ fn parse_toml_bool(chars: &Vec<String>, index: &mut usize, out: &mut Option<XffV
         && &chars[*index + 4] == "e"
     {
         *out = Some(XffValue::from(false));
+        Ok(())
+    } else {
+        Err(NemesisError::new(
+            "mawu::lexers::toml_lexer",
+            TomlParseError::UnexpectedCharacter(format!(
+                "Expected a boolean, but got: '{}'",
+                chars[*index]
+            )),
+        )
+        .add_ctx(format!("Line number: {line_number}")))
     }
 }
 
@@ -324,22 +754,25 @@ fn skip_whitespace_or_comments(chars: &Vec<String>, index: &mut usize, skip_newl
     let mut in_comment = false;
     while index.saturating_add(1) < chars.len() {
         if in_comment {
-            let (is_newline, skip) = is_newline(&chars[*index], &chars[index.saturating_add(1)]);
+            let (is_newline, skip, skip_lines) =
+                is_newline(&chars[*index], &chars[index.saturating_add(1)]);
+            *skip_newlines = skip_newlines.saturating_add(skip_lines);
             if is_newline {
-                *skip_newlines = skip_newlines.saturating_add(skip);
                 in_comment = false;
             }
             *index = index.saturating_add(skip);
             continue;
         }
-        let (is_newline, skip) = is_newline(&chars[*index], &chars[index.saturating_add(1)]);
+        let (is_newline, skip, skip_lines) =
+            is_newline(&chars[*index], &chars[index.saturating_add(1)]);
+        *skip_newlines = skip_newlines.saturating_add(skip_lines);
         if is_newline {
-            *skip_newlines = skip_newlines.saturating_add(skip);
             *index = index.saturating_add(skip);
             continue;
         }
-        let (is_whitespace, skip) =
+        let (is_whitespace, skip, skip_lines) =
             is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+        *skip_newlines = skip_newlines.saturating_add(skip_lines);
         if is_whitespace {
             *index = index.saturating_add(skip);
         } else if &chars[*index] == "#" && !in_comment {
@@ -361,27 +794,33 @@ fn is_toml_whitespace_no_newlines(s: &str) -> bool {
 /// Checks if the given string is whitespace or not (including newlines)
 ///
 /// Also supports double `\n` to skip empty lines
-fn is_toml_whitespace(s: &str, next_char: &str) -> (bool, usize) {
+///
+/// # Returns
+/// - `(is_whitespace, skip, lines)` -> is_whitespace: bool, skip (in bytes): usize, lines (0-2 if double `\n`): usize
+fn is_toml_whitespace(s: &str, next_char: &str) -> (bool, usize, usize) {
     if s == "\t" || s == " " {
         if next_char == "\t" || next_char == " " {
-            (true, 2)
+            (true, 2, 0)
         } else {
-            (true, 1)
+            (true, 1, 0)
         }
     } else {
         is_newline(s, next_char)
     }
 }
 
-/// Matches unix & windows styles; for TOML 1.1.0 compliance
+/// Matches unix & windows styles for TOML 1.1.0 compliance
 ///
 /// Also supports double `\n` to skip empty lines immediately
-fn is_newline(s: &str, next_char: &str) -> (bool, usize) {
+///
+/// # Returns
+/// - `(is_newline, skip, lines)` -> is_newline: bool, skip (in bytes): usize, lines (0-2 if double `\n`): usize
+fn is_newline(s: &str, next_char: &str) -> (bool, usize, usize) {
     if (s == "\r" || s == "\n") && next_char == "\n" {
-        (true, 2)
+        (true, 2, 1)
     } else if s == "\n" {
-        (true, 1)
+        (true, 2, 2)
     } else {
-        (false, 0)
+        (false, 0, 0)
     }
 }

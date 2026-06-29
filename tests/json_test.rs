@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod json_tests {
     use athena::XffValue;
-    use mawu::{read::json, MawuContents};
+    use mawu::{MawuContents, read::json};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -344,13 +344,19 @@ mod json_tests {
 
     #[test]
     fn microsoft_edge_invalid_dummy_json() {
-        let invalid_binary = json("data/json/json-test-data/microsoftEdge-json-test-data/json-dummy-data/invalid-json/binary-data.json");
+        let invalid_binary = json(
+            "data/json/json-test-data/microsoftEdge-json-test-data/json-dummy-data/invalid-json/binary-data.json",
+        );
         assert_eq!(invalid_binary.is_err(), true);
 
-        let invalid_missing_colon = json("data/json/json-test-data/microsoftEdge-json-test-data/json-dummy-data/invalid-json/missing-colon.json");
+        let invalid_missing_colon = json(
+            "data/json/json-test-data/microsoftEdge-json-test-data/json-dummy-data/invalid-json/missing-colon.json",
+        );
         assert_eq!(invalid_missing_colon.is_err(), true);
 
-        let unterminated = json("data/json/json-test-data/microsoftEdge-json-test-data/json-dummy-data/invalid-json/unterminated.json");
+        let unterminated = json(
+            "data/json/json-test-data/microsoftEdge-json-test-data/json-dummy-data/invalid-json/unterminated.json",
+        );
         assert_eq!(unterminated.is_err(), true);
     }
 
@@ -523,12 +529,14 @@ mod json_tests {
             json("data/json/json-test-data/jsonTestSuite-data/test_parsing/i_number_huge_exp.json")
                 .unwrap();
         assert_eq!(number_huge_exp.clone().into_array().unwrap().len(), 1);
-        assert!(number_huge_exp
-            .into_array()
-            .unwrap()
-            .get(0)
-            .unwrap()
-            .is_null());
+        assert!(
+            number_huge_exp
+                .into_array()
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .is_null()
+        );
     }
 
     #[test]
