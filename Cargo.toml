@@ -11,6 +11,7 @@ csv = []
 athena = { git = "https://github.com/Xqhare/athena"}
 nemesis = { git = "https://github.com/Xqhare/nemesis"}
 thoth = { git = "https://github.com/Xqhare/thoth"}
+horae = { git = "https://github.com/Xqhare/horae"}
 
 [dev-dependencies]
 json = "0.12.4"
