@@ -25,6 +25,14 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
             continue;
         }
         if char == "[" {
+            let array_of_tables = {
+                if &chars[index.saturating_add(1)] == "[" {
+                    index = index.saturating_add(1);
+                    true
+                } else {
+                    false
+                }
+            };
             let table_keys = parse_keys(&chars, &mut index);
             if chars[index] != "]" {
                 return Err(NemesisError::new(
@@ -39,7 +47,13 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
                 ))
                 .add_ctx(format!("Line number: {line_number}")));
             }
-            index = index.saturating_add(1);
+            index = {
+                if array_of_tables {
+                    index.saturating_add(2)
+                } else {
+                    index.saturating_add(1)
+                }
+            };
             if is_whitespace_or_comment(&chars[index]) {
                 skip_whitespace_or_comments(&chars, &mut index, &mut line_number);
             }
@@ -56,18 +70,25 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
                 .add_ctx(format!("Line number: {line_number}")));
             }
             let value = parse_toml_value(&chars, &mut index, &mut line_number)?;
-            let mut most_inner_value = out.get_mut(&keys[0]).unwrap();
-            let max_index = keys.len() - 1;
-            for (i, key) in keys.iter().skip(1).enumerate() {
-                if let Some(obj) = most_inner_value.as_object_mut() {
-                    if obj.get(key).is_none() {
-                        obj.insert(key.clone(), XffValue::Object(Object::new()));
+            let last_key_idx = keys.len() - 1;
+            let mut current = &mut out;
+            for (i, key) in keys.iter().enumerate() {
+                if i == last_key_idx {
+                    if current.get(key).is_some() {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer",
+                            TomlParseError::KeyAlreadyDefined,
+                        )
+                        .add_ctx(format!("Line number: {line_number}")));
                     }
-                    most_inner_value = obj.get_mut(key).unwrap();
-                } else if let Some(array) = most_inner_value.as_array_mut() {
-                    if i == max_index {
-                        array.push(value);
-                        break;
+                    current.insert(key.clone(), value);
+                    break;
+                } else {
+                    if current.get(key).is_none() {
+                        current.insert(key.clone(), XffValue::Object(Object::new()));
+                    }
+                    if let Some(next_obj) = current.get_mut(key).and_then(|v| v.as_object_mut()) {
+                        current = next_obj;
                     } else {
                         return Err(NemesisError::new(
                             "mawu::lexers::toml_lexer",
@@ -741,6 +762,8 @@ fn parse_toml_bool(
 
 /// Returns the parsed key.
 /// Should the key be dotted, it will return all the keys separated by dots
+///
+/// Handles `[[table.name.key]]`; Stops at the first `]` (among other things)
 fn parse_keys(chars: &Vec<String>, index: &mut usize) -> Vec<String> {
     let mut kind = KeyKind::Bare;
     if chars[*index] == "\"" {
