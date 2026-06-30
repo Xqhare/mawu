@@ -135,7 +135,7 @@ fn serialize_csv_value(value: XffValue, spaces: u8) -> Result<String, nemesis::N
         XffValue::LocalDate(d) => Ok(format!("{}{}", make_whitespace(spaces), d)),
         XffValue::LocalTime(t) => Ok(format!("{}{}", make_whitespace(spaces), t)),
         XffValue::LocalDateTime(dt) => Ok(format!("{}{}", make_whitespace(spaces), dt)),
-        XffValue::PNan | XffValue::NNan => Ok(format!("{}NaN", make_whitespace(spaces))),
+        XffValue::PosNaN | XffValue::NegNaN => Ok(format!("{}NaN", make_whitespace(spaces))),
         _ => Err(nemesis::NemesisError::new(
             "mawu::serializers::csv_serializer",
             CsvError::WriteError(CsvWriteError::UnallowedType(format!(
