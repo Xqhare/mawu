@@ -1,7 +1,5 @@
 use athena::{
-    Array, LocalDate, LocalDateTime, LocalTime, Number, Object,
-    XffValue::{self, LocalDate, LocalDateTime},
-    xff,
+    Array, LocalDate, LocalDateTime, LocalTime, Number, Object, XffValue, tvec_to_xff_value, xff,
 };
 use horae::Utc;
 use nemesis::NemesisError;
@@ -50,7 +48,35 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
             continue;
         } else {
             let keys = parse_keys(&chars, &mut index);
+            if keys.is_empty() {
+                return Err(NemesisError::new(
+                    "mawu::lexers::toml_lexer",
+                    TomlParseError::ExpectedKey,
+                )
+                .add_ctx(format!("Line number: {line_number}")));
+            }
             let value = parse_toml_value(&chars, &mut index, &mut line_number)?;
+            let mut most_inner_value = out.get_mut(&keys[0]).unwrap();
+            let max_index = keys.len() - 1;
+            for (i, key) in keys.iter().skip(1).enumerate() {
+                if let Some(obj) = most_inner_value.as_object_mut() {
+                    if obj.get(key).is_none() {
+                        obj.insert(key.clone(), XffValue::Object(Object::new()));
+                    }
+                    most_inner_value = obj.get_mut(key).unwrap();
+                } else if let Some(array) = most_inner_value.as_array_mut() {
+                    if i == max_index {
+                        array.push(value);
+                        break;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer",
+                            TomlParseError::KeyAlreadyDefined,
+                        )
+                        .add_ctx(format!("Line number: {line_number}")));
+                    }
+                }
+            }
         }
         index = index.saturating_add(1);
     }
@@ -104,7 +130,7 @@ fn parse_toml_value(
             break;
         }
         if &chars[*index] == "t" || &chars[*index] == "f" {
-            parse_toml_bool(chars, index, &mut out)?;
+            parse_toml_bool(chars, index, &mut out, *line_number)?;
         } else if &chars[*index] == "\"" || &chars[*index] == "'" {
             parse_toml_string(chars, index, line_number, &mut out)?;
         } else if &chars[*index] == "n"
@@ -132,6 +158,63 @@ fn parse_toml_value(
         *index = index.saturating_add(1);
     }
     Ok(out.unwrap())
+}
+
+fn parse_toml_table(
+    chars: &Vec<String>,
+    index: &mut usize,
+    out: &mut Option<XffValue>,
+    line_number: &mut usize,
+) -> Result<(), NemesisError> {
+    if index.saturating_add(1) >= chars.len() {
+        return Err(NemesisError::new(
+            "mawu::lexers::toml_lexer::parse_toml_table",
+            TomlParseError::UnexpectedEndOfFile,
+        )
+        .add_ctx("Inside an inline table, but reached the end of the file.")
+        .add_ctx(format!("Line number: {line_number}")));
+    }
+    let mut object = Object::new();
+    let (is_whitespace, skip, skip_lines) =
+        is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+    if is_whitespace {
+        *index = index.saturating_add(skip);
+        *line_number = line_number.saturating_add(skip_lines);
+    }
+    if &chars[*index] == "}" {
+        *index = index.saturating_add(1);
+        out.insert(xff!(object));
+        return Ok(());
+    }
+    while index.saturating_add(1) < chars.len() {
+        let keys = parse_keys(chars, index);
+        let value = parse_toml_value(chars, index, line_number)?;
+        object.insert(keys[0].clone(), value);
+        let (is_whitespace, skip, skip_lines) =
+            is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+        if is_whitespace {
+            *index = index.saturating_add(skip);
+            *line_number = line_number.saturating_add(skip_lines);
+        }
+        if &chars[*index] == "}" {
+            *index = index.saturating_add(1);
+            break;
+        } else if &chars[*index] == "," {
+            *index = index.saturating_add(1);
+            continue;
+        } else {
+            return Err(NemesisError::new(
+                "mawu::lexers::toml_lexer::parse_toml_table",
+                TomlParseError::UnexpectedCharacter(format!(
+                    "Expected a value, but got: '{}'",
+                    chars[*index]
+                )),
+            )
+            .add_ctx(format!("Line number: {line_number}")));
+        }
+    }
+    out.insert(xff!(object));
+    Ok(())
 }
 
 fn parse_toml_array(
@@ -308,13 +391,16 @@ fn handle_escaped_sequences(
         tmp_buf.push_str(&chars[*index]);
         tmp_buf.push_str(&chars[index.saturating_add(1)]);
     } else if &chars[*index] == "\\" && index.saturating_add(1) < chars.len() {
-        match &chars[index.saturating_add(1)] {
+        match chars[index.saturating_add(1)].as_str() {
             "x" => {
                 if index.saturating_add(3) < chars.len() && is_hex_digit_range(chars, index, 2) {
                     // U+00xx
                     let mut u8: [u8; 2] = [0; 2];
-                    let hex = &chars[index.saturating_add(2)].to_string()
-                        + &chars[index.saturating_add(3)].to_string();
+                    let hex = format!(
+                        "{}{}",
+                        chars[index.saturating_add(2)],
+                        chars[index.saturating_add(3)]
+                    );
                     u8[1] = u8::from_str_radix(&hex, 16).unwrap();
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(4);
@@ -329,11 +415,17 @@ fn handle_escaped_sequences(
                 if index.saturating_add(5) < chars.len() && is_hex_digit_range(chars, index, 4) {
                     // U+xxxx
                     let mut u8 = [0; 2];
-                    let hex1 = &chars[index.saturating_add(2)].to_string()
-                        + &chars[index.saturating_add(3)].to_string();
+                    let hex1 = format!(
+                        "{}{}",
+                        chars[index.saturating_add(2)],
+                        chars[index.saturating_add(3)]
+                    );
                     u8[0] = u8::from_str_radix(&hex1, 16).unwrap();
-                    let hex2 = &chars[index.saturating_add(4)].to_string()
-                        + &chars[index.saturating_add(5)].to_string();
+                    let hex2 = format!(
+                        "{}{}",
+                        chars[index.saturating_add(4)],
+                        chars[index.saturating_add(5)]
+                    );
                     u8[1] = u8::from_str_radix(&hex2, 16).unwrap();
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(6);
@@ -348,17 +440,29 @@ fn handle_escaped_sequences(
                 if index.saturating_add(9) < chars.len() && is_hex_digit_range(chars, index, 8) {
                     // U+xxxxxx
                     let mut u8 = [0; 4];
-                    let hex1 = &chars[index.saturating_add(2)].to_string()
-                        + &chars[index.saturating_add(3)].to_string();
+                    let hex1 = format!(
+                        "{}{}",
+                        chars[index.saturating_add(2)],
+                        chars[index.saturating_add(3)]
+                    );
                     u8[0] = u8::from_str_radix(&hex1, 16).unwrap();
-                    let hex2 = &chars[index.saturating_add(4)].to_string()
-                        + &chars[index.saturating_add(5)].to_string();
+                    let hex2 = format!(
+                        "{}{}",
+                        chars[index.saturating_add(4)],
+                        chars[index.saturating_add(5)]
+                    );
                     u8[1] = u8::from_str_radix(&hex2, 16).unwrap();
-                    let hex3 = &chars[index.saturating_add(6)].to_string()
-                        + &chars[index.saturating_add(7)].to_string();
+                    let hex3 = format!(
+                        "{}{}",
+                        chars[index.saturating_add(6)],
+                        chars[index.saturating_add(7)]
+                    );
                     u8[2] = u8::from_str_radix(&hex3, 16).unwrap();
-                    let hex4 = &chars[index.saturating_add(8)].to_string()
-                        + &chars[index.saturating_add(9)].to_string();
+                    let hex4 = format!(
+                        "{}{}",
+                        chars[index.saturating_add(8)],
+                        chars[index.saturating_add(9)]
+                    );
                     u8[3] = u8::from_str_radix(&hex4, 16).unwrap();
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(10);
@@ -481,7 +585,7 @@ fn parse_toml_number_or_datetime(
                 return Ok(());
             }
             "+nan" => {
-                *out = Some(XffValue::PosNan);
+                *out = Some(XffValue::PosNaN);
                 return Ok(());
             }
             "-nan" => {
@@ -502,7 +606,9 @@ fn parse_toml_number_or_datetime(
         }
     }
     if tmp_buf.starts_with("0x") {
-        if let Ok(value) = u128::from_str_radix(&tmp_buf[2..], 16) {
+        if (tmp_buf.len() <= 4 && tmp_buf.len() >= 3)
+            && let Ok(value) = u8::from_str_radix(&tmp_buf[2..], 16)
+        {
             *out = Some(XffValue::from(value));
             return Ok(());
         } else {
@@ -517,7 +623,9 @@ fn parse_toml_number_or_datetime(
             .add_ctx(format!("Line number: {line_number}")));
         }
     } else if tmp_buf.starts_with("0b") {
-        if let Ok(value) = u128::from_str_radix(&tmp_buf[2..], 2) {
+        if (tmp_buf.len() <= 10 && tmp_buf.len() >= 3)
+            && let Ok(value) = u8::from_str_radix(&tmp_buf[2..], 2)
+        {
             *out = Some(XffValue::from(value));
             return Ok(());
         } else {
@@ -532,7 +640,9 @@ fn parse_toml_number_or_datetime(
             .add_ctx(format!("Line number: {line_number}")));
         }
     } else if tmp_buf.starts_with("0o") {
-        if let Ok(value) = u128::from_str_radix(&tmp_buf[2..], 8) {
+        if (tmp_buf.len() <= 4 && tmp_buf.len() >= 3)
+            && let Ok(value) = u8::from_str_radix(&tmp_buf[2..], 8)
+        {
             *out = Some(XffValue::from(value));
             return Ok(());
         } else {
@@ -598,6 +708,7 @@ fn parse_toml_bool(
     chars: &Vec<String>,
     index: &mut usize,
     out: &mut Option<XffValue>,
+    line_number: usize,
 ) -> Result<(), NemesisError> {
     if &chars[*index] == "t"
         && index.saturating_add(3) < chars.len()
@@ -725,10 +836,6 @@ enum KeyKind {
     DoubleQuoted,
     SingleQuoted,
     Dotted,
-}
-
-fn parse_table(chars: &Vec<String>, index: &mut usize) -> (String, XffValue) {
-    todo!()
 }
 
 /// Checks if the given string is whitespace or a comment

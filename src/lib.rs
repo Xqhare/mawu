@@ -65,6 +65,13 @@ pub mod read {
         json_lexer::json_lexer(file_handling::read_file(path)?)
     }
 
+    /// Reads a TOML file and returns a `XffValue` or an error if the file could not be read or parsed.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the TOML file, relative or absolute
+    ///
+    /// # Errors
+    /// Only returns `NemesisError`'s
     pub fn toml<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
         toml_lexer::toml_lexer(file_handling::read_file_unicode_segment(path)?)
     }

@@ -1,7 +1,11 @@
 use crate::utils::make_whitespace;
 use athena::{Number, XffValue};
 
-pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String, nemesis::NemesisError> {
+pub fn serialize_json(
+    value: XffValue,
+    spaces: u8,
+    depth: u16,
+) -> Result<String, nemesis::NemesisError> {
     let mut out: String = Default::default();
     let current_whitespace = (spaces as usize).saturating_mul(depth as usize);
     let next_depth = depth.saturating_add(1);
@@ -195,7 +199,7 @@ pub fn serialize_json(value: XffValue, spaces: u8, depth: u16) -> Result<String,
         XffValue::LocalDateTime(dt) => {
             out.push_str(&format!("\"{dt}\""));
         }
-        XffValue::PNan | XffValue::NNan => {
+        XffValue::PosNaN | XffValue::NegNaN => {
             out.push_str("null");
         }
         _ => {

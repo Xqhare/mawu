@@ -72,6 +72,8 @@ pub enum TomlParseError {
     InvalidEscapeSequence(String),
     /// Expected colon, got something else
     ExpectedColon,
+    /// Key already defined, Value cannot hold another key value pair or single value
+    KeyAlreadyDefined,
     /// Expected key, got something else
     ExpectedKey,
     /// Expected value, got something else
@@ -85,6 +87,7 @@ pub enum TomlParseError {
 impl fmt::Display for TomlParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            TomlParseError::KeyAlreadyDefined => write!(f, "Key already defined"),
             TomlParseError::UnescapedDoubleQuote => write!(f, "Unescaped double quote"),
             TomlParseError::UnterminatedQuote => write!(f, "Unterminated quote"),
             TomlParseError::UnescapedCharacter(c) => write!(f, "Unescaped character: {c}"),
