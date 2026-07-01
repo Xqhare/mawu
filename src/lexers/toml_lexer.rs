@@ -1,15 +1,11 @@
-use athena::{
-    Array, LocalDate, LocalDateTime, LocalTime, Number, Object, XffValue, tvec_to_xff_value, xff,
-};
+use athena::{Array, LocalDate, LocalDateTime, LocalTime, Number, Object, XffValue, xff};
 use horae::Utc;
 use nemesis::NemesisError;
 
 use crate::errors::toml_error::TomlParseError;
 
-pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
+pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue, NemesisError> {
     let mut index = 0;
-    // Used for error reporting
-    let mut line_number = 1;
     if chars.is_empty() {
         return Err(NemesisError::new(
             "mawu::lexers::toml_lexer",
@@ -21,11 +17,11 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
         && let Some(char) = chars.get(index)
     {
         if is_whitespace_or_comment(char) {
-            skip_whitespace_or_comments(&chars, &mut index, &mut line_number);
+            skip_whitespace_or_comments(&chars, &mut index, line_number);
             continue;
         }
         if char == "[" {
-            let array_of_tables = {
+            let is_array_of_tables = {
                 if &chars[index.saturating_add(1)] == "[" {
                     index = index.saturating_add(1);
                     true
@@ -48,18 +44,77 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
                 .add_ctx(format!("Line number: {line_number}")));
             }
             index = {
-                if array_of_tables {
+                if is_array_of_tables {
                     index.saturating_add(2)
                 } else {
                     index.saturating_add(1)
                 }
             };
             if is_whitespace_or_comment(&chars[index]) {
-                skip_whitespace_or_comments(&chars, &mut index, &mut line_number);
+                skip_whitespace_or_comments(&chars, &mut index, line_number);
             }
-            let value = parse_toml_value(&chars, &mut index, &mut line_number)?;
-            todo!("Parse contents of table");
-            continue;
+            let value = toml_lexer(&chars[index..], line_number)?;
+            if !is_end_table_marker(chars, index) {
+                return Err(NemesisError::new(
+                    "mawu::lexers::toml_lexer",
+                    TomlParseError::ExpectedEndOfObject,
+                )
+                .add_ctx(format!("Line number: {line_number}")));
+            } else {
+                index = index.saturating_add(1);
+            }
+            if table_keys.is_empty() {
+                return Err(NemesisError::new(
+                    "mawu::lexers::toml_lexer",
+                    TomlParseError::ExpectedKey,
+                )
+                .add_ctx(format!("Line number: {line_number}")));
+            }
+            let mut current = &mut out;
+            let last_key_idx = table_keys.len() - 1;
+            for (i, key) in table_keys.iter().enumerate() {
+                if i == last_key_idx {
+                    if current.get(key).is_some() && !is_array_of_tables {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer",
+                            TomlParseError::KeyAlreadyDefined,
+                        )
+                        .add_ctx(format!("Line number: {line_number}")));
+                    } else if current.get(key).is_some() && is_array_of_tables {
+                        current
+                            .get_mut(key)
+                            .and_then(|v| v.as_array_mut())
+                            .ok_or_else(|| {
+                                NemesisError::new(
+                                    "mawu::lexers::toml_lexer",
+                                    TomlParseError::KeyAlreadyDefined,
+                                )
+                                .add_ctx(format!("Line number: {line_number}"))
+                            })?
+                            .push(value.clone());
+                        break;
+                    }
+                    if is_array_of_tables {
+                        current.insert(key.clone(), XffValue::Array(Array::from(vec![value])));
+                    } else {
+                        current.insert(key.clone(), value);
+                    }
+                    break;
+                } else {
+                    if current.get(key).is_none() {
+                        current.insert(key.clone(), XffValue::Object(Object::new()));
+                    }
+                    if let Some(next_obj) = current.get_mut(key).and_then(|v| v.as_object_mut()) {
+                        current = next_obj;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer",
+                            TomlParseError::KeyAlreadyDefined,
+                        )
+                        .add_ctx(format!("Line number: {line_number}")));
+                    }
+                }
+            }
         } else {
             let keys = parse_keys(&chars, &mut index);
             if keys.is_empty() {
@@ -69,7 +124,7 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
                 )
                 .add_ctx(format!("Line number: {line_number}")));
             }
-            let value = parse_toml_value(&chars, &mut index, &mut line_number)?;
+            let value = parse_toml_value(&chars, &mut index, line_number)?;
             let last_key_idx = keys.len() - 1;
             let mut current = &mut out;
             for (i, key) in keys.iter().enumerate() {
@@ -104,8 +159,31 @@ pub fn toml_lexer(chars: Vec<String>) -> Result<XffValue, NemesisError> {
     Ok(out.into())
 }
 
+/// Returns true if the character is the end of a table
+///
+/// # Note
+/// ```toml
+/// [table]
+/// key = "value"
+///
+/// key2 = "value2"
+///
+/// [table2]
+/// ...
+/// ```
+/// Everything after the `]` of `[table]` is part of `table`, up to the next `[` of `[table2]` OR the end of the file
+fn is_end_table_marker(chars: &[String], index: usize) -> bool {
+    if index.saturating_add(1) == chars.len() {
+        true
+    } else if chars[index.saturating_add(1)] == "[" {
+        true
+    } else {
+        false
+    }
+}
+
 fn handle_value_equals_sign(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     line_number: &mut usize,
 ) -> Result<(), NemesisError> {
@@ -138,7 +216,7 @@ fn handle_value_equals_sign(
 }
 
 fn parse_toml_value(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     line_number: &mut usize,
 ) -> Result<XffValue, NemesisError> {
@@ -165,7 +243,7 @@ fn parse_toml_value(
             *index = index.saturating_add(1);
             parse_toml_array(chars, index, &mut out, line_number)?;
         } else if &chars[*index] == "{" {
-            parse_toml_table(chars, index, &mut out, line_number)?;
+            parse_toml_inline_table(chars, index, &mut out, line_number)?;
         } else {
             return Err(NemesisError::new(
                 "mawu::lexers::toml_lexer",
@@ -181,8 +259,8 @@ fn parse_toml_value(
     Ok(out.unwrap())
 }
 
-fn parse_toml_table(
-    chars: &Vec<String>,
+fn parse_toml_inline_table(
+    chars: &[String],
     index: &mut usize,
     out: &mut Option<XffValue>,
     line_number: &mut usize,
@@ -204,7 +282,7 @@ fn parse_toml_table(
     }
     if &chars[*index] == "}" {
         *index = index.saturating_add(1);
-        out.insert(xff!(object));
+        let _ = out.insert(xff!(object));
         return Ok(());
     }
     while index.saturating_add(1) < chars.len() {
@@ -234,12 +312,12 @@ fn parse_toml_table(
             .add_ctx(format!("Line number: {line_number}")));
         }
     }
-    out.insert(xff!(object));
+    let _ = out.insert(xff!(object));
     Ok(())
 }
 
 fn parse_toml_array(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     out: &mut Option<XffValue>,
     line_number: &mut usize,
@@ -261,7 +339,7 @@ fn parse_toml_array(
     }
     if &chars[*index] == "]" {
         *index = index.saturating_add(1);
-        out.insert(xff!(array));
+        let _ = out.insert(xff!(array));
         return Ok(());
     }
     while index.saturating_add(1) < chars.len() {
@@ -280,7 +358,7 @@ fn parse_toml_array(
             *line_number = line_number.saturating_add(skip_lines);
         }
     }
-    out.insert(XffValue::Array(array));
+    let _ = out.insert(XffValue::Array(array));
     Ok(())
 }
 
@@ -293,7 +371,7 @@ enum StringType {
 }
 
 fn parse_toml_string(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     line_number: &mut usize,
     out: &mut Option<XffValue>,
@@ -386,7 +464,7 @@ fn parse_toml_string(
 }
 
 fn handle_multiline_cont(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     line_number: &mut usize,
     tmp_buf: &mut String,
@@ -403,7 +481,7 @@ fn handle_multiline_cont(
 }
 
 fn handle_escaped_sequences(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     tmp_buf: &mut String,
 ) -> Result<(), NemesisError> {
@@ -509,7 +587,7 @@ fn handle_escaped_sequences(
     Ok(())
 }
 
-fn is_hex_digit_range(chars: &Vec<String>, index: &mut usize, until_index: usize) -> bool {
+fn is_hex_digit_range(chars: &[String], index: &mut usize, until_index: usize) -> bool {
     if index.saturating_add(until_index) < chars.len() {
         for i in 1..until_index {
             if !is_hex_digit(&chars[index.saturating_add(i)]) {
@@ -534,7 +612,7 @@ fn is_hex_digit(s: &str) -> bool {
 /// Checks for `\\` followed by `\"`, `\\`, `\\b`, `\\t`, `\\n`, `\\f`, `\\r`, `\\e`
 ///
 /// Returns true if the next chars match, false if not
-fn is_single_escaped_char(chars: &Vec<String>, index: &mut usize) -> bool {
+fn is_single_escaped_char(chars: &[String], index: &mut usize) -> bool {
     if &chars[*index] == "\\" && index.saturating_add(1) < chars.len() {
         if &chars[index.saturating_add(1)] == "\""
             || &chars[index.saturating_add(1)] == "\\"
@@ -555,7 +633,7 @@ fn is_single_escaped_char(chars: &Vec<String>, index: &mut usize) -> bool {
 }
 
 fn parse_toml_number_or_datetime(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     out: &mut Option<XffValue>,
     line_number: usize,
@@ -709,7 +787,7 @@ fn parse_toml_number_or_datetime(
     .add_ctx(format!("Line number: {line_number}")))
 }
 
-fn is_end_of_value(chars: &Vec<String>, index: &mut usize) -> bool {
+fn is_end_of_value(chars: &[String], index: &mut usize) -> bool {
     if chars.len() <= *index {
         true
     } else {
@@ -726,7 +804,7 @@ fn is_number(s: &str) -> bool {
 }
 
 fn parse_toml_bool(
-    chars: &Vec<String>,
+    chars: &[String],
     index: &mut usize,
     out: &mut Option<XffValue>,
     line_number: usize,
@@ -764,7 +842,7 @@ fn parse_toml_bool(
 /// Should the key be dotted, it will return all the keys separated by dots
 ///
 /// Handles `[[table.name.key]]`; Stops at the first `]` (among other things)
-fn parse_keys(chars: &Vec<String>, index: &mut usize) -> Vec<String> {
+fn parse_keys(chars: &[String], index: &mut usize) -> Vec<String> {
     let mut kind = KeyKind::Bare;
     if chars[*index] == "\"" {
         kind = KeyKind::DoubleQuoted;
@@ -808,7 +886,7 @@ fn parse_keys(chars: &Vec<String>, index: &mut usize) -> Vec<String> {
     out
 }
 
-fn is_dotted_key(chars: &Vec<String>, index: &mut usize) -> bool {
+fn is_dotted_key(chars: &[String], index: &mut usize) -> bool {
     while index.saturating_add(1) < chars.len() {
         let char = &chars[*index];
         if char == "." {
@@ -833,15 +911,15 @@ fn is_valid_bare_key_char(s: &str) -> bool {
     false
 }
 
-fn make_single_quoted_key(chars: &Vec<String>, index: &mut usize) -> String {
+fn make_single_quoted_key(chars: &[String], index: &mut usize) -> String {
     make_quoted_key(chars, index, "'")
 }
 
-fn make_double_quoted_key(chars: &Vec<String>, index: &mut usize) -> String {
+fn make_double_quoted_key(chars: &[String], index: &mut usize) -> String {
     make_quoted_key(chars, index, "\"")
 }
 
-fn make_quoted_key(chars: &Vec<String>, index: &mut usize, pattern: &str) -> String {
+fn make_quoted_key(chars: &[String], index: &mut usize, pattern: &str) -> String {
     let mut out = String::new();
     while index.saturating_add(1) < chars.len() {
         if &chars[*index] == pattern {
@@ -868,7 +946,7 @@ fn is_whitespace_or_comment(s: &str) -> bool {
     is_toml_whitespace(s, "").0 || s == "#"
 }
 
-fn skip_whitespace_only(chars: &Vec<String>, index: &mut usize) {
+fn skip_whitespace_only(chars: &[String], index: &mut usize) {
     while index.saturating_add(1) < chars.len() {
         let s = &chars[*index];
         if s == "\t" || s == " " {
@@ -880,7 +958,7 @@ fn skip_whitespace_only(chars: &Vec<String>, index: &mut usize) {
 }
 
 /// Skips whitespace and comments, updating the index
-fn skip_whitespace_or_comments(chars: &Vec<String>, index: &mut usize, skip_newlines: &mut usize) {
+fn skip_whitespace_or_comments(chars: &[String], index: &mut usize, skip_newlines: &mut usize) {
     let mut in_comment = false;
     while index.saturating_add(1) < chars.len() {
         if in_comment {

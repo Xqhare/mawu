@@ -73,7 +73,11 @@ pub mod read {
     /// # Errors
     /// Only returns `NemesisError`'s
     pub fn toml<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
-        toml_lexer::toml_lexer(file_handling::read_file_unicode_segment(path)?)
+        let mut line_number = 1;
+        toml_lexer::toml_lexer(
+            &file_handling::read_file_unicode_segment(path)?,
+            &mut line_number,
+        )
     }
 }
 
