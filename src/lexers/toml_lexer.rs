@@ -1,6 +1,6 @@
 use athena::{Array, LocalDate, LocalDateTime, LocalTime, Number, Object, XffValue, xff};
 use horae::Utc;
-use nemesis::NemesisError;
+use nemesis::{NemesisError, NemesisResultExt};
 
 use crate::errors::toml_error::TomlParseError;
 
@@ -29,7 +29,7 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                     false
                 }
             };
-            let table_keys = parse_keys(&chars, &mut index);
+            let table_keys = parse_keys(&chars, &mut index).add_ctx("Caller: toml_lexer")?;
             if chars[index] != "]" {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -53,7 +53,9 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
             if is_whitespace_or_comment(&chars[index]) {
                 skip_whitespace_or_comments(&chars, &mut index, line_number);
             }
-            let value = toml_lexer(&chars[index..], line_number)?;
+            let value = toml_lexer(&chars[index..], line_number)
+                .add_ctx("Inside table")
+                .add_ctx("Caller: toml_lexer")?;
             if !is_end_table_marker(chars, index) {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -116,7 +118,11 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 }
             }
         } else {
-            let keys = parse_keys(&chars, &mut index);
+            println!("Line number: {line_number}");
+            println!("Char: {}", chars[index]);
+            let keys = parse_keys(&chars, &mut index).add_ctx("Caller: toml_lexer")?;
+            println!("Keys: {keys:?}");
+            println!("Next: {}", chars[index]);
             if keys.is_empty() {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -124,7 +130,10 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 )
                 .add_ctx(format!("Line number: {line_number}")));
             }
-            let value = parse_toml_value(&chars, &mut index, line_number)?;
+            let value = parse_toml_value(&chars, &mut index, line_number)
+                .add_ctx("Inside general key value")
+                .add_ctx("Caller: toml_lexer")?;
+            println!("Value: {}", value);
             let last_key_idx = keys.len() - 1;
             let mut current = &mut out;
             for (i, key) in keys.iter().enumerate() {
@@ -154,7 +163,6 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 }
             }
         }
-        index = index.saturating_add(1);
     }
     Ok(out.into())
 }
@@ -196,7 +204,7 @@ fn handle_value_equals_sign(
         }
     } else {
         return Err(NemesisError::new(
-            "mawu::lexers::toml_lexer",
+            "mawu::lexers::toml_lexer::handle_value_equals_sign",
             TomlParseError::UnexpectedCharacter(format!(
                 "Expected '=' or surrounding whitespace, but got: '{}'",
                 chars[*index]
@@ -206,7 +214,7 @@ fn handle_value_equals_sign(
     }
     if is_newline(&chars[*index], &chars[index.saturating_add(1)]).0 {
         return Err(NemesisError::new(
-            "mawu::lexers::toml_lexer",
+            "mawu::lexers::toml_lexer::handle_value_equals_sign",
             TomlParseError::UnexpectedNewline,
         )
         .add_ctx("Key requires a value.")
@@ -220,33 +228,38 @@ fn parse_toml_value(
     index: &mut usize,
     line_number: &mut usize,
 ) -> Result<XffValue, NemesisError> {
-    handle_value_equals_sign(chars, index, line_number)?;
-
+    handle_value_equals_sign(chars, index, line_number).add_ctx("Caller: parse_toml_value")?;
     let mut out: Option<XffValue> = None;
     while index.saturating_add(1) < chars.len() {
         if is_newline(&chars[*index], &chars[index.saturating_add(1)]).0 {
             *index = index.saturating_add(1);
+            *line_number = line_number.saturating_add(1);
             break;
         }
         if &chars[*index] == "t" || &chars[*index] == "f" {
-            parse_toml_bool(chars, index, &mut out, *line_number)?;
+            parse_toml_bool(chars, index, &mut out, *line_number)
+                .add_ctx("Caller: parse_toml_value")?;
         } else if &chars[*index] == "\"" || &chars[*index] == "'" {
-            parse_toml_string(chars, index, line_number, &mut out)?;
+            parse_toml_string(chars, index, line_number, &mut out)
+                .add_ctx("Caller: parse_toml_value")?;
         } else if &chars[*index] == "n"
             || &chars[*index] == "i"
             || &chars[*index] == "+"
             || &chars[*index] == "-"
             || is_number(&chars[*index])
         {
-            parse_toml_number_or_datetime(chars, index, &mut out, *line_number)?;
+            parse_toml_number_or_datetime(chars, index, &mut out, *line_number)
+                .add_ctx("Caller: parse_toml_value")?;
         } else if &chars[*index] == "[" {
             *index = index.saturating_add(1);
-            parse_toml_array(chars, index, &mut out, line_number)?;
+            parse_toml_array(chars, index, &mut out, line_number)
+                .add_ctx("Caller: parse_toml_value")?;
         } else if &chars[*index] == "{" {
-            parse_toml_inline_table(chars, index, &mut out, line_number)?;
+            parse_toml_inline_table(chars, index, &mut out, line_number)
+                .add_ctx("Caller: parse_toml_value")?;
         } else {
             return Err(NemesisError::new(
-                "mawu::lexers::toml_lexer",
+                "mawu::lexers::toml_lexer::parse_toml_value",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected a value, but got: '{}'",
                     chars[*index]
@@ -286,8 +299,9 @@ fn parse_toml_inline_table(
         return Ok(());
     }
     while index.saturating_add(1) < chars.len() {
-        let keys = parse_keys(chars, index);
-        let value = parse_toml_value(chars, index, line_number)?;
+        let keys = parse_keys(chars, index).add_ctx("Caller: parse_toml_inline_table")?;
+        let value = parse_toml_value(chars, index, line_number)
+            .add_ctx("Caller: parse_toml_inline_table")?;
         object.insert(keys[0].clone(), value);
         let (is_whitespace, skip, skip_lines) =
             is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
@@ -324,7 +338,7 @@ fn parse_toml_array(
 ) -> Result<(), NemesisError> {
     if index.saturating_add(1) >= chars.len() {
         return Err(NemesisError::new(
-            "mawu::lexers::toml_lexer",
+            "mawu::lexers::toml_lexer::parse_toml_array",
             TomlParseError::UnexpectedEndOfFile,
         )
         .add_ctx("Inside an array, but reached the end of the file.")
@@ -347,7 +361,10 @@ fn parse_toml_array(
             *index = index.saturating_add(1);
             break;
         }
-        array.push(parse_toml_value(chars, index, line_number)?);
+        array.push(
+            parse_toml_value(chars, index, line_number)
+                .add_ctx("Could not parse array value; Caller: parse_toml_value")?,
+        );
         if &chars[*index] == "," {
             *index = index.saturating_add(1);
         }
@@ -419,7 +436,8 @@ fn parse_toml_string(
                 }
             }
             StringType::Double => {
-                handle_escaped_sequences(chars, index, &mut tmp_buf)?;
+                handle_escaped_sequences(chars, index, &mut tmp_buf)
+                    .add_ctx("Inside a Double Quoted String; Caller: parse_toml_string")?;
                 if &chars[*index] == "\"" {
                     *index = index.saturating_add(1);
                     break;
@@ -447,7 +465,8 @@ fn parse_toml_string(
             }
             StringType::TripleDouble => {
                 handle_multiline_cont(chars, index, line_number, &mut tmp_buf);
-                handle_escaped_sequences(chars, index, &mut tmp_buf)?;
+                handle_escaped_sequences(chars, index, &mut tmp_buf)
+                    .add_ctx("Inside a Triple Double Quoted String; Caller: parse_toml_string")?;
                 if &chars[*index] == "\""
                     && index.saturating_add(3) < chars.len()
                     && &chars[index.saturating_add(1)] == "\""
@@ -500,13 +519,20 @@ fn handle_escaped_sequences(
                         chars[index.saturating_add(2)],
                         chars[index.saturating_add(3)]
                     );
-                    u8[1] = u8::from_str_radix(&hex, 16).unwrap();
+                    if let Ok(hex) = u8::from_str_radix(&hex, 16) {
+                        u8[0] = hex;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '\\x{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)]))
+                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits"));
+                    }
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(4);
                 } else {
                     return Err(NemesisError::new(
-                                    "mawu::lexers::toml_lexer::parse_toml_string",
-                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)]))
+                                    "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '\\x{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)]))
                                 ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits"));
                 }
             }
@@ -519,19 +545,45 @@ fn handle_escaped_sequences(
                         chars[index.saturating_add(2)],
                         chars[index.saturating_add(3)]
                     );
-                    u8[0] = u8::from_str_radix(&hex1, 16).unwrap();
+                    if let Ok(hex1) = u8::from_str_radix(&hex1, 16) {
+                        u8[0] = hex1;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\u{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                            ))
+                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\u' and is followed by four hex digits"));
+                    }
                     let hex2 = format!(
                         "{}{}",
                         chars[index.saturating_add(4)],
                         chars[index.saturating_add(5)]
                     );
-                    u8[1] = u8::from_str_radix(&hex2, 16).unwrap();
+                    if let Ok(hex2) = u8::from_str_radix(&hex2, 16) {
+                        u8[1] = hex2;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\u{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                            ))
+                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\u' and is followed by four hex digits"));
+                    }
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(6);
                 } else {
                     return Err(NemesisError::new(
-                                    "mawu::lexers::toml_lexer::parse_toml_string",
-                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '{}{}{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)], chars[index.saturating_add(4)], chars[index.saturating_add(5)]))
+                                    "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                                    TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '\\u{}{}{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)], chars[index.saturating_add(4)], chars[index.saturating_add(5)]))
                                 ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\u' and is followed by four hex digits"));
                 }
             }
@@ -544,37 +596,106 @@ fn handle_escaped_sequences(
                         chars[index.saturating_add(2)],
                         chars[index.saturating_add(3)]
                     );
-                    u8[0] = u8::from_str_radix(&hex1, 16).unwrap();
+                    if let Ok(hex1) = u8::from_str_radix(&hex1, 16) {
+                        u8[0] = hex1;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\U{}{}{}{}{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                                chars[index.saturating_add(6)],
+                                chars[index.saturating_add(7)],
+                                chars[index.saturating_add(8)],
+                                chars[index.saturating_add(9)]
+                            ))
+                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\U' and is followed by eight hex digits"));
+                    }
                     let hex2 = format!(
                         "{}{}",
                         chars[index.saturating_add(4)],
                         chars[index.saturating_add(5)]
                     );
-                    u8[1] = u8::from_str_radix(&hex2, 16).unwrap();
+                    if let Ok(hex2) = u8::from_str_radix(&hex2, 16) {
+                        u8[1] = hex2;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\U{}{}{}{}{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                                chars[index.saturating_add(6)],
+                                chars[index.saturating_add(7)],
+                                chars[index.saturating_add(8)],
+                                chars[index.saturating_add(9)]
+                            ))
+                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\U' and is followed by eight hex digits"));
+                    }
                     let hex3 = format!(
                         "{}{}",
                         chars[index.saturating_add(6)],
                         chars[index.saturating_add(7)]
                     );
-                    u8[2] = u8::from_str_radix(&hex3, 16).unwrap();
+                    if let Ok(hex3) = u8::from_str_radix(&hex3, 16) {
+                        u8[2] = hex3;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\U{}{}{}{}{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                                chars[index.saturating_add(6)],
+                                chars[index.saturating_add(7)],
+                                chars[index.saturating_add(8)],
+                                chars[index.saturating_add(9)]
+                            ))
+                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\U' and is followed by eight hex digits"));
+                    }
                     let hex4 = format!(
                         "{}{}",
                         chars[index.saturating_add(8)],
                         chars[index.saturating_add(9)]
                     );
-                    u8[3] = u8::from_str_radix(&hex4, 16).unwrap();
+                    if let Ok(hex4) = u8::from_str_radix(&hex4, 16) {
+                        u8[3] = hex4;
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\U{}{}{}{}{}{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                                chars[index.saturating_add(6)],
+                                chars[index.saturating_add(7)],
+                                chars[index.saturating_add(8)],
+                                chars[index.saturating_add(9)],
+                                chars[index.saturating_add(10)]
+                            )),
+                        ));
+                    }
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(10);
                 } else {
                     return Err(NemesisError::new(
-                                    "mawu::lexers::toml_lexer::parse_toml_string",
+                                    "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
                                     TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '{}{}{}{}{}{}{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)], chars[index.saturating_add(4)], chars[index.saturating_add(5)],chars[index.saturating_add(6)], chars[index.saturating_add(7)], chars[index.saturating_add(8)], chars[index.saturating_add(9)] ))
                                 ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\U' and is followed by eight hex digits"));
                 }
             }
             _ => {
                 return Err(NemesisError::new(
-                    "mawu::lexers::toml_lexer::parse_toml_string",
+                    "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
                     TomlParseError::UnexpectedCharacter(format!(
                         "Expected escaped unicode identifier (\\x, \\u, \\U), but got: '{}{}'",
                         chars[*index],
@@ -660,7 +781,7 @@ fn parse_toml_number_or_datetime(
         || tmp_buf.ends_with(".")
     {
         return Err(NemesisError::new(
-            "mawu::lexers::toml_lexer",
+            "mawu::lexers::toml_lexer::parse_number_or_date_time",
             TomlParseError::UnexpectedCharacter(format!(
                 "Expected a number, but got: '{}'",
                 chars[*index]
@@ -693,7 +814,7 @@ fn parse_toml_number_or_datetime(
             }
             _ => {
                 return Err(NemesisError::new(
-                    "mawu::lexers::toml_lexer",
+                "mawu::lexers::toml_lexer::parse_number_or_date_time",
                     TomlParseError::UnexpectedCharacter(format!(
                         "Expected either an infinity (+inf, inf or -inf) or a NaN (+nan, nan or -nan), but got: '{}'",
                         chars[*index]
@@ -712,7 +833,7 @@ fn parse_toml_number_or_datetime(
             return Ok(());
         } else {
             return Err(NemesisError::new(
-                "mawu::lexers::toml_lexer",
+                "mawu::lexers::toml_lexer::parse_number_or_date_time",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected a hex number, but got: '{}'",
                     chars[*index]
@@ -729,7 +850,7 @@ fn parse_toml_number_or_datetime(
             return Ok(());
         } else {
             return Err(NemesisError::new(
-                "mawu::lexers::toml_lexer",
+                "mawu::lexers::toml_lexer::parse_number_or_date_time",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected a binary number, but got: '{}'",
                     chars[*index]
@@ -746,7 +867,7 @@ fn parse_toml_number_or_datetime(
             return Ok(());
         } else {
             return Err(NemesisError::new(
-                "mawu::lexers::toml_lexer",
+                "mawu::lexers::toml_lexer::parse_number_or_date_time",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected an octal number, but got: '{}'",
                     chars[*index]
@@ -777,7 +898,7 @@ fn parse_toml_number_or_datetime(
         return Ok(());
     }
     Err(NemesisError::new(
-        "mawu::lexers::toml_lexer",
+        "mawu::lexers::toml_lexer::parse_number_or_date_time",
         TomlParseError::UnexpectedCharacter(format!(
             "Expected a number, but got: '{}'",
             chars[*index]
@@ -816,6 +937,7 @@ fn parse_toml_bool(
         && &chars[*index + 3] == "e"
     {
         *out = Some(XffValue::from(true));
+        *index = index.saturating_add(3);
         Ok(())
     } else if &chars[*index] == "f"
         && index.saturating_add(4) < chars.len()
@@ -825,10 +947,11 @@ fn parse_toml_bool(
         && &chars[*index + 4] == "e"
     {
         *out = Some(XffValue::from(false));
+        *index = index.saturating_add(4);
         Ok(())
     } else {
         Err(NemesisError::new(
-            "mawu::lexers::toml_lexer",
+            "mawu::lexers::toml_lexer::parse_toml_bool",
             TomlParseError::UnexpectedCharacter(format!(
                 "Expected a boolean, but got: '{}'",
                 chars[*index]
@@ -841,65 +964,71 @@ fn parse_toml_bool(
 /// Returns the parsed key.
 /// Should the key be dotted, it will return all the keys separated by dots
 ///
-/// Handles `[[table.name.key]]`; Stops at the first `]` (among other things)
-fn parse_keys(chars: &[String], index: &mut usize) -> Vec<String> {
-    let mut kind = KeyKind::Bare;
-    if chars[*index] == "\"" {
-        kind = KeyKind::DoubleQuoted;
-        *index = index.saturating_add(1);
-    } else if chars[*index] == "'" {
-        kind = KeyKind::SingleQuoted;
-        *index = index.saturating_add(1);
-    }
+/// Handles `[[table.name.key]]`
+fn parse_keys(chars: &[String], index: &mut usize) -> Result<Vec<String>, NemesisError> {
     let mut out: Vec<String> = Default::default();
     let mut key = String::new();
+
     while index.saturating_add(1) < chars.len() {
-        match kind {
-            KeyKind::Bare => {
+        match chars[*index].as_str() {
+            "\"" => {
+                *index = index.saturating_add(1);
+                while index.saturating_add(1) < chars.len() {
+                    if &chars[*index] == "\"" {
+                        *index = index.saturating_add(1);
+                        break;
+                    }
+                    key.push_str(&chars[*index]);
+                    *index = index.saturating_add(1);
+                }
+            }
+            "'" => {
+                *index = index.saturating_add(1);
+                while index.saturating_add(1) < chars.len() {
+                    if &chars[*index] == "'" {
+                        *index = index.saturating_add(1);
+                        break;
+                    }
+                    key.push_str(&chars[*index]);
+                    *index = index.saturating_add(1);
+                }
+            }
+            "." => {
+                out.push(key);
+                key = String::new();
+                *index = index.saturating_add(1);
+            }
+            "=" | "]" => break,
+            _ => {
                 if is_valid_bare_key_char(&chars[*index]) {
                     key.push_str(&chars[*index]);
                     *index = index.saturating_add(1);
                 } else {
-                    if is_dotted_key(chars, index) {
-                        kind = KeyKind::Dotted;
-                        out.push(key);
-                        key = String::new();
+                    if is_toml_whitespace_no_newlines(&chars[*index]) {
+                        skip_whitespace_only(&chars, index);
                         continue;
                     }
-                    break;
+                    return Err(NemesisError::new(
+                        "mawu::lexers::toml_lexer::parse_keys",
+                        TomlParseError::UnexpectedCharacter(format!(
+                            "Expected a key, but got: '{}'",
+                            chars[*index]
+                        )),
+                    ));
                 }
-            }
-            KeyKind::Dotted => {
-                out.extend(parse_keys(chars, index));
-            }
-            KeyKind::DoubleQuoted => {
-                make_double_quoted_key(chars, index);
-            }
-            KeyKind::SingleQuoted => {
-                make_single_quoted_key(chars, index);
             }
         }
     }
     if !key.is_empty() {
         out.push(key);
     }
-    out
-}
-
-fn is_dotted_key(chars: &[String], index: &mut usize) -> bool {
-    while index.saturating_add(1) < chars.len() {
-        let char = &chars[*index];
-        if char == "." {
-            *index = index.saturating_add(1);
-            return true;
-        }
-        if is_toml_whitespace_no_newlines(char) {
-            skip_whitespace_only(chars, index);
-            continue;
-        }
-        return false;
+    if out.is_empty() {
+        return Err(NemesisError::new(
+            "mawu::lexers::toml_lexer::parse_keys",
+            TomlParseError::ExpectedKey,
+        ));
     }
-    false
+    Ok(out)
 }
 
 fn is_valid_bare_key_char(s: &str) -> bool {
@@ -911,34 +1040,6 @@ fn is_valid_bare_key_char(s: &str) -> bool {
     false
 }
 
-fn make_single_quoted_key(chars: &[String], index: &mut usize) -> String {
-    make_quoted_key(chars, index, "'")
-}
-
-fn make_double_quoted_key(chars: &[String], index: &mut usize) -> String {
-    make_quoted_key(chars, index, "\"")
-}
-
-fn make_quoted_key(chars: &[String], index: &mut usize, pattern: &str) -> String {
-    let mut out = String::new();
-    while index.saturating_add(1) < chars.len() {
-        if &chars[*index] == pattern {
-            break;
-        }
-        out.push_str(&chars[*index]);
-        *index = index.saturating_add(1);
-    }
-    out
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum KeyKind {
-    Bare,
-    DoubleQuoted,
-    SingleQuoted,
-    Dotted,
-}
-
 /// Checks if the given string is whitespace or a comment
 ///
 /// Also supports double `\n` to skip empty lines
@@ -948,8 +1049,7 @@ fn is_whitespace_or_comment(s: &str) -> bool {
 
 fn skip_whitespace_only(chars: &[String], index: &mut usize) {
     while index.saturating_add(1) < chars.len() {
-        let s = &chars[*index];
-        if s == "\t" || s == " " {
+        if &chars[*index] == "\t" || &chars[*index] == " " {
             *index = index.saturating_add(1);
         } else {
             break;
@@ -962,13 +1062,20 @@ fn skip_whitespace_or_comments(chars: &[String], index: &mut usize, skip_newline
     let mut in_comment = false;
     while index.saturating_add(1) < chars.len() {
         if in_comment {
-            let (is_newline, skip, skip_lines) =
-                is_newline(&chars[*index], &chars[index.saturating_add(1)]);
-            *skip_newlines = skip_newlines.saturating_add(skip_lines);
-            if is_newline {
-                in_comment = false;
+            while index.saturating_add(1) < chars.len() {
+                if &chars[index.saturating_add(1)] == "\n" {
+                    if &chars[index.saturating_add(2)] == "\n" {
+                        *index = index.saturating_add(3);
+                        *skip_newlines = skip_newlines.saturating_add(2);
+                    } else {
+                        *index = index.saturating_add(2);
+                        *skip_newlines = skip_newlines.saturating_add(1);
+                    }
+                    break;
+                }
+                *index = index.saturating_add(1);
             }
-            *index = index.saturating_add(skip);
+            in_comment = false;
             continue;
         }
         let (is_newline, skip, skip_lines) =
@@ -985,6 +1092,7 @@ fn skip_whitespace_or_comments(chars: &[String], index: &mut usize, skip_newline
             *index = index.saturating_add(skip);
         } else if &chars[*index] == "#" && !in_comment {
             in_comment = true;
+            *index = index.saturating_add(1);
             continue;
         } else {
             break;
