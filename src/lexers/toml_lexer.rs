@@ -16,6 +16,7 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
     while &index < &chars.len()
         && let Some(char) = chars.get(index)
     {
+        println!("Object: {out:?}");
         if is_whitespace_or_comment(char) {
             skip_whitespace_or_comments(&chars, &mut index, line_number);
             continue;
@@ -29,7 +30,8 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                     false
                 }
             };
-            let table_keys = parse_keys(&chars, &mut index).add_ctx("Caller: toml_lexer")?;
+            let table_keys =
+                parse_keys(&chars, &mut index, *line_number).add_ctx("Caller: toml_lexer")?;
             if chars[index] != "]" {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -118,11 +120,12 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 }
             }
         } else {
-            println!("Line number: {line_number}");
-            println!("Char: {}", chars[index]);
-            let keys = parse_keys(&chars, &mut index).add_ctx("Caller: toml_lexer")?;
-            println!("Keys: {keys:?}");
-            println!("Next: {}", chars[index]);
+            println!("M Line number: {line_number}");
+            println!("M Char: {}", chars[index]);
+            let keys =
+                parse_keys(&chars, &mut index, *line_number).add_ctx("Caller: toml_lexer")?;
+            println!("M Keys: {keys:?}");
+            println!("M Next: {}", chars[index]);
             if keys.is_empty() {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -133,7 +136,7 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
             let value = parse_toml_value(&chars, &mut index, line_number)
                 .add_ctx("Inside general key value")
                 .add_ctx("Caller: toml_lexer")?;
-            println!("Value: {}", value);
+            println!("M Value: {}", value);
             let last_key_idx = keys.len() - 1;
             let mut current = &mut out;
             for (i, key) in keys.iter().enumerate() {
@@ -235,6 +238,9 @@ fn parse_toml_value(
             *index = index.saturating_add(1);
             *line_number = line_number.saturating_add(1);
             break;
+        } else if is_whitespace_or_comment(&chars[*index]) {
+            skip_whitespace_or_comments(&chars, index, line_number);
+            break;
         }
         if &chars[*index] == "t" || &chars[*index] == "f" {
             parse_toml_bool(chars, index, &mut out, *line_number)
@@ -242,6 +248,7 @@ fn parse_toml_value(
         } else if &chars[*index] == "\"" || &chars[*index] == "'" {
             parse_toml_string(chars, index, line_number, &mut out)
                 .add_ctx("Caller: parse_toml_value")?;
+            continue;
         } else if &chars[*index] == "n"
             || &chars[*index] == "i"
             || &chars[*index] == "+"
@@ -250,6 +257,7 @@ fn parse_toml_value(
         {
             parse_toml_number_or_datetime(chars, index, &mut out, *line_number)
                 .add_ctx("Caller: parse_toml_value")?;
+            continue;
         } else if &chars[*index] == "[" {
             *index = index.saturating_add(1);
             parse_toml_array(chars, index, &mut out, line_number)
@@ -299,7 +307,8 @@ fn parse_toml_inline_table(
         return Ok(());
     }
     while index.saturating_add(1) < chars.len() {
-        let keys = parse_keys(chars, index).add_ctx("Caller: parse_toml_inline_table")?;
+        let keys =
+            parse_keys(chars, index, *line_number).add_ctx("Caller: parse_toml_inline_table")?;
         let value = parse_toml_value(chars, index, line_number)
             .add_ctx("Caller: parse_toml_inline_table")?;
         object.insert(keys[0].clone(), value);
@@ -433,6 +442,7 @@ fn parse_toml_string(
                     break;
                 } else {
                     tmp_buf.push_str(&chars[*index]);
+                    *index = index.saturating_add(1);
                 }
             }
             StringType::Double => {
@@ -443,6 +453,7 @@ fn parse_toml_string(
                     break;
                 } else {
                     tmp_buf.push_str(&chars[*index]);
+                    *index = index.saturating_add(1);
                 }
             }
             StringType::TripleSingle => {
@@ -461,6 +472,7 @@ fn parse_toml_string(
                     break;
                 } else {
                     tmp_buf.push_str(&chars[*index]);
+                    *index = index.saturating_add(1);
                 }
             }
             StringType::TripleDouble => {
@@ -474,6 +486,9 @@ fn parse_toml_string(
                 {
                     *index = index.saturating_add(3);
                     break;
+                } else {
+                    tmp_buf.push_str(&chars[*index]);
+                    *index = index.saturating_add(1);
                 }
             }
         }
@@ -771,6 +786,7 @@ fn parse_toml_number_or_datetime(
             // just drop the underscore, accept everything else
             if &chars[*index] != "_" {
                 tmp_buf.push_str(&chars[*index]);
+                *index = index.saturating_add(1);
             }
         }
     }
@@ -965,7 +981,11 @@ fn parse_toml_bool(
 /// Should the key be dotted, it will return all the keys separated by dots
 ///
 /// Handles `[[table.name.key]]`
-fn parse_keys(chars: &[String], index: &mut usize) -> Result<Vec<String>, NemesisError> {
+fn parse_keys(
+    chars: &[String],
+    index: &mut usize,
+    line_number: usize,
+) -> Result<Vec<String>, NemesisError> {
     let mut out: Vec<String> = Default::default();
     let mut key = String::new();
 
@@ -1014,7 +1034,8 @@ fn parse_keys(chars: &[String], index: &mut usize) -> Result<Vec<String>, Nemesi
                             "Expected a key, but got: '{}'",
                             chars[*index]
                         )),
-                    ));
+                    )
+                    .add_ctx(format!("Line number: {line_number}")));
                 }
             }
         }
@@ -1023,10 +1044,7 @@ fn parse_keys(chars: &[String], index: &mut usize) -> Result<Vec<String>, Nemesi
         out.push(key);
     }
     if out.is_empty() {
-        return Err(NemesisError::new(
-            "mawu::lexers::toml_lexer::parse_keys",
-            TomlParseError::ExpectedKey,
-        ));
+        out.push(String::new());
     }
     Ok(out)
 }
