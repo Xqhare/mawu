@@ -16,14 +16,17 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
     while &index < &chars.len()
         && let Some(char) = chars.get(index)
     {
-        println!("Object: {out:?}");
+        if index < chars.len() - 1 {
+            break;
+        }
         if is_whitespace_or_comment(char) {
             skip_whitespace_or_comments(&chars, &mut index, line_number);
             continue;
         }
         if char == "[" {
+            index = index.saturating_add(1);
             let is_array_of_tables = {
-                if &chars[index.saturating_add(1)] == "[" {
+                if &chars[index] == "[" {
                     index = index.saturating_add(1);
                     true
                 } else {
@@ -120,12 +123,8 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 }
             }
         } else {
-            println!("M Line number: {line_number}");
-            println!("M Char: {}", chars[index]);
             let keys =
                 parse_keys(&chars, &mut index, *line_number).add_ctx("Caller: toml_lexer")?;
-            println!("M Keys: {keys:?}");
-            println!("M Next: {}", chars[index]);
             if keys.is_empty() {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -133,10 +132,9 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 )
                 .add_ctx(format!("Line number: {line_number}")));
             }
-            let value = parse_toml_value(&chars, &mut index, line_number)
+            let value = parse_toml_value(&chars, &mut index, line_number, false)
                 .add_ctx("Inside general key value")
                 .add_ctx("Caller: toml_lexer")?;
-            println!("M Value: {}", value);
             let last_key_idx = keys.len() - 1;
             let mut current = &mut out;
             for (i, key) in keys.iter().enumerate() {
@@ -184,12 +182,18 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
 /// ```
 /// Everything after the `]` of `[table]` is part of `table`, up to the next `[` of `[table2]` OR the end of the file
 fn is_end_table_marker(chars: &[String], index: usize) -> bool {
-    if index.saturating_add(1) == chars.len() {
+    if index >= chars.len() {
         true
-    } else if chars[index.saturating_add(1)] == "[" {
+    } else if chars[index] == "]" {
         true
     } else {
-        false
+        if index.saturating_add(1) == chars.len() {
+            true
+        } else if chars[index.saturating_add(1)] == "[" {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -230,8 +234,11 @@ fn parse_toml_value(
     chars: &[String],
     index: &mut usize,
     line_number: &mut usize,
+    is_array: bool,
 ) -> Result<XffValue, NemesisError> {
-    handle_value_equals_sign(chars, index, line_number).add_ctx("Caller: parse_toml_value")?;
+    if !is_array {
+        handle_value_equals_sign(chars, index, line_number).add_ctx("Caller: parse_toml_value")?;
+    }
     let mut out: Option<XffValue> = None;
     while index.saturating_add(1) < chars.len() {
         if is_newline(&chars[*index], &chars[index.saturating_add(1)]).0 {
@@ -255,16 +262,20 @@ fn parse_toml_value(
             || &chars[*index] == "-"
             || is_number(&chars[*index])
         {
-            parse_toml_number_or_datetime(chars, index, &mut out, *line_number)
+            parse_toml_number_or_datetime(chars, index, &mut out, line_number)
                 .add_ctx("Caller: parse_toml_value")?;
             continue;
         } else if &chars[*index] == "[" {
             *index = index.saturating_add(1);
             parse_toml_array(chars, index, &mut out, line_number)
                 .add_ctx("Caller: parse_toml_value")?;
+            continue;
         } else if &chars[*index] == "{" {
             parse_toml_inline_table(chars, index, &mut out, line_number)
                 .add_ctx("Caller: parse_toml_value")?;
+            continue;
+        } else if &chars[*index] == "," || &chars[*index] == "]" || &chars[*index] == "}" {
+            break;
         } else {
             return Err(NemesisError::new(
                 "mawu::lexers::toml_lexer::parse_toml_value",
@@ -276,6 +287,9 @@ fn parse_toml_value(
             .add_ctx(format!("Line number: {line_number}")));
         }
         *index = index.saturating_add(1);
+    }
+    if is_whitespace_or_comment(&chars[*index]) {
+        skip_whitespace_or_comments(&chars, index, line_number);
     }
     Ok(out.unwrap())
 }
@@ -294,6 +308,18 @@ fn parse_toml_inline_table(
         .add_ctx("Inside an inline table, but reached the end of the file.")
         .add_ctx(format!("Line number: {line_number}")));
     }
+    if &chars[*index] != "{" {
+        return Err(NemesisError::new(
+            "mawu::lexers::toml_lexer::parse_toml_table",
+            TomlParseError::UnexpectedCharacter(format!(
+                "Expected '{{', but got: '{}'",
+                chars[*index]
+            )),
+        )
+        .add_ctx(format!("Line number: {line_number}")));
+    } else {
+        *index = index.saturating_add(1);
+    }
     let mut object = Object::new();
     let (is_whitespace, skip, skip_lines) =
         is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
@@ -307,11 +333,6 @@ fn parse_toml_inline_table(
         return Ok(());
     }
     while index.saturating_add(1) < chars.len() {
-        let keys =
-            parse_keys(chars, index, *line_number).add_ctx("Caller: parse_toml_inline_table")?;
-        let value = parse_toml_value(chars, index, line_number)
-            .add_ctx("Caller: parse_toml_inline_table")?;
-        object.insert(keys[0].clone(), value);
         let (is_whitespace, skip, skip_lines) =
             is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
         if is_whitespace {
@@ -321,18 +342,26 @@ fn parse_toml_inline_table(
         if &chars[*index] == "}" {
             *index = index.saturating_add(1);
             break;
-        } else if &chars[*index] == "," {
+        }
+        let keys =
+            parse_keys(chars, index, *line_number).add_ctx("Caller: parse_toml_inline_table")?;
+        let value = parse_toml_value(chars, index, line_number, false)
+            .add_ctx("Caller: parse_toml_inline_table")?;
+        object.insert(keys[0].clone(), value);
+        if &chars[*index] == "," {
             *index = index.saturating_add(1);
-            continue;
+        }
+        let (is_whitespace, skip, skip_lines) =
+            is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+        if is_whitespace {
+            *index = index.saturating_add(skip);
+            *line_number = line_number.saturating_add(skip_lines);
+        }
+        if &chars[*index] == "}" {
+            *index = index.saturating_add(1);
+            break;
         } else {
-            return Err(NemesisError::new(
-                "mawu::lexers::toml_lexer::parse_toml_table",
-                TomlParseError::UnexpectedCharacter(format!(
-                    "Expected a value, but got: '{}'",
-                    chars[*index]
-                )),
-            )
-            .add_ctx(format!("Line number: {line_number}")));
+            continue;
         }
     }
     let _ = out.insert(xff!(object));
@@ -366,12 +395,19 @@ fn parse_toml_array(
         return Ok(());
     }
     while index.saturating_add(1) < chars.len() {
+        if &chars[*index] == "," {
+            *index = index.saturating_add(1);
+        }
+        if is_whitespace_or_comment(&chars[*index]) {
+            skip_whitespace_or_comments(&chars, index, line_number);
+        }
         if &chars[*index] == "]" {
             *index = index.saturating_add(1);
             break;
         }
+        println!("ARY Char at index: {}", chars[*index]);
         array.push(
-            parse_toml_value(chars, index, line_number)
+            parse_toml_value(chars, index, line_number, true)
                 .add_ctx("Could not parse array value; Caller: parse_toml_value")?,
         );
         if &chars[*index] == "," {
@@ -404,10 +440,7 @@ fn parse_toml_string(
 ) -> Result<(), NemesisError> {
     let str_type = {
         if &chars[*index] == "'" {
-            if &chars[index.saturating_add(1)] == "'"
-                && &chars[index.saturating_add(2)] == "'"
-                && &chars[index.saturating_add(3)] == "'"
-            {
+            if &chars[index.saturating_add(1)] == "'" && &chars[index.saturating_add(2)] == "'" {
                 *index = index.saturating_add(3);
                 StringType::TripleSingle
             } else {
@@ -415,10 +448,7 @@ fn parse_toml_string(
                 StringType::Single
             }
         } else if &chars[*index] == "\"" {
-            if &chars[index.saturating_add(1)] == "\""
-                && &chars[index.saturating_add(2)] == "\""
-                && &chars[index.saturating_add(3)] == "\""
-            {
+            if &chars[index.saturating_add(1)] == "\"" && &chars[index.saturating_add(2)] == "\"" {
                 *index = index.saturating_add(3);
                 StringType::TripleDouble
             } else {
@@ -504,12 +534,19 @@ fn handle_multiline_cont(
     tmp_buf: &mut String,
 ) {
     if &chars[*index] == "\\" && index.saturating_add(2) < chars.len() {
-        let (is_whitespace, skip, skip_lines) =
-            is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
-        if is_whitespace {
+        if &chars[index.saturating_add(1)] == "\n" {
             tmp_buf.push('\n');
-            *index = index.saturating_add(skip);
-            *line_number = line_number.saturating_add(skip_lines);
+            *index = index.saturating_add(2);
+            *line_number = line_number.saturating_add(1);
+            skip_whitespace_only(chars, index);
+        } else {
+            let (is_whitespace, skip, skip_lines) =
+                is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+            if is_whitespace {
+                tmp_buf.push('\n');
+                *index = index.saturating_add(skip);
+                *line_number = line_number.saturating_add(skip_lines);
+            }
         }
     }
 }
@@ -534,13 +571,18 @@ fn handle_escaped_sequences(
                         chars[index.saturating_add(2)],
                         chars[index.saturating_add(3)]
                     );
-                    if let Ok(hex) = u8::from_str_radix(&hex, 16) {
-                        u8[0] = hex;
-                    } else {
-                        return Err(NemesisError::new(
-                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
-                            TomlParseError::UnexpectedCharacter(format!("Expected an escaped unicode identifier, but got: '\\x{}{}'", chars[index.saturating_add(2)], chars[index.saturating_add(3)]))
-                        ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits"));
+                    match u8::from_str_radix(&hex, 16) {
+                        Ok(hex) => u8[1] = hex,
+                        Err(e) => {
+                            return Err(NemesisError::new(
+                                "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                                TomlParseError::UnexpectedCharacter(format!(
+                                    "Expected an escaped unicode identifier, but got: '\\x{}{}'",
+                                    chars[index.saturating_add(2)],
+                                    chars[index.saturating_add(3)]
+                                ))
+                            ).add_ctx(format!("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits - {}", e)).add_ctx(e.to_string()))
+                        }
                     }
                     tmp_buf.push_str(&String::from_utf8_lossy(&u8));
                     *index = index.saturating_add(4);
@@ -725,7 +767,7 @@ fn handle_escaped_sequences(
 
 fn is_hex_digit_range(chars: &[String], index: &mut usize, until_index: usize) -> bool {
     if index.saturating_add(until_index) < chars.len() {
-        for i in 1..until_index {
+        for i in 2..until_index {
             if !is_hex_digit(&chars[index.saturating_add(i)]) {
                 return false;
             }
@@ -772,7 +814,7 @@ fn parse_toml_number_or_datetime(
     chars: &[String],
     index: &mut usize,
     out: &mut Option<XffValue>,
-    line_number: usize,
+    line_number: &mut usize,
 ) -> Result<(), NemesisError> {
     let mut tmp_buf = String::new();
     if chars[*index] == "+" || chars[*index] == "-" {
@@ -780,27 +822,25 @@ fn parse_toml_number_or_datetime(
         *index = index.saturating_add(1);
     }
     while index.saturating_add(1) < chars.len() {
-        if is_end_of_value(chars, index) {
+        if is_end_of_number_value(chars, index, line_number) {
             break;
         } else {
             // just drop the underscore, accept everything else
             if &chars[*index] != "_" {
                 tmp_buf.push_str(&chars[*index]);
                 *index = index.saturating_add(1);
+            } else {
+                *index = index.saturating_add(1);
             }
         }
     }
-    if tmp_buf == "+"
-        || tmp_buf == "-"
-        || (tmp_buf.starts_with("0") && tmp_buf.len() != 1)
-        || tmp_buf.starts_with(".")
-        || tmp_buf.ends_with(".")
-    {
+    tmp_buf = tmp_buf.trim().to_string();
+    if tmp_buf == "+" || tmp_buf == "-" || tmp_buf.starts_with(".") || tmp_buf.ends_with(".") {
         return Err(NemesisError::new(
             "mawu::lexers::toml_lexer::parse_number_or_date_time",
             TomlParseError::UnexpectedCharacter(format!(
                 "Expected a number, but got: '{}'",
-                chars[*index]
+                tmp_buf
             )),
         )
         .add_ctx("Numbers cannot only consist of a + or -.")
@@ -833,7 +873,7 @@ fn parse_toml_number_or_datetime(
                 "mawu::lexers::toml_lexer::parse_number_or_date_time",
                     TomlParseError::UnexpectedCharacter(format!(
                         "Expected either an infinity (+inf, inf or -inf) or a NaN (+nan, nan or -nan), but got: '{}'",
-                        chars[*index]
+                        tmp_buf
                     )),
                 )
                 .add_ctx("Infinities and NaNs are case sensitive and may only have a leading sign.")
@@ -842,17 +882,31 @@ fn parse_toml_number_or_datetime(
         }
     }
     if tmp_buf.starts_with("0x") {
-        if (tmp_buf.len() <= 4 && tmp_buf.len() >= 3)
-            && let Ok(value) = u8::from_str_radix(&tmp_buf[2..], 16)
-        {
-            *out = Some(XffValue::from(value));
-            return Ok(());
+        if tmp_buf.len() >= 3 {
+            match usize::from_str_radix(&tmp_buf[2..], 16) {
+                Ok(value) => {
+                    *out = Some(XffValue::from(value));
+                    return Ok(());
+                }
+                Err(err) => {
+                    return Err(NemesisError::new(
+                        "mawu::lexers::toml_lexer::parse_number_or_date_time",
+                        TomlParseError::UnexpectedCharacter(format!(
+                            "Expected a hex number, but got: '{}'",
+                            tmp_buf
+                        )),
+                    )
+                    .add_ctx(err.to_string())
+                    .add_ctx("Hex numbers always start with '0x'.")
+                    .add_ctx(format!("Line number: {line_number}")));
+                }
+            }
         } else {
             return Err(NemesisError::new(
                 "mawu::lexers::toml_lexer::parse_number_or_date_time",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected a hex number, but got: '{}'",
-                    chars[*index]
+                    tmp_buf
                 )),
             )
             .add_ctx("Hex numbers always start with '0x'.")
@@ -860,7 +914,7 @@ fn parse_toml_number_or_datetime(
         }
     } else if tmp_buf.starts_with("0b") {
         if (tmp_buf.len() <= 10 && tmp_buf.len() >= 3)
-            && let Ok(value) = u8::from_str_radix(&tmp_buf[2..], 2)
+            && let Ok(value) = usize::from_str_radix(&tmp_buf[2..], 2)
         {
             *out = Some(XffValue::from(value));
             return Ok(());
@@ -869,15 +923,15 @@ fn parse_toml_number_or_datetime(
                 "mawu::lexers::toml_lexer::parse_number_or_date_time",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected a binary number, but got: '{}'",
-                    chars[*index]
+                    tmp_buf
                 )),
             )
             .add_ctx("Binary numbers always start with '0b'.")
             .add_ctx(format!("Line number: {line_number}")));
         }
     } else if tmp_buf.starts_with("0o") {
-        if (tmp_buf.len() <= 4 && tmp_buf.len() >= 3)
-            && let Ok(value) = u8::from_str_radix(&tmp_buf[2..], 8)
+        if tmp_buf.len() >= 3
+            && let Ok(value) = usize::from_str_radix(&tmp_buf[2..], 8)
         {
             *out = Some(XffValue::from(value));
             return Ok(());
@@ -886,7 +940,7 @@ fn parse_toml_number_or_datetime(
                 "mawu::lexers::toml_lexer::parse_number_or_date_time",
                 TomlParseError::UnexpectedCharacter(format!(
                     "Expected an octal number, but got: '{}'",
-                    chars[*index]
+                    tmp_buf
                 )),
             )
             .add_ctx("Octal numbers always start with '0o'.")
@@ -917,21 +971,28 @@ fn parse_toml_number_or_datetime(
         "mawu::lexers::toml_lexer::parse_number_or_date_time",
         TomlParseError::UnexpectedCharacter(format!(
             "Expected a number, but got: '{}'",
-            chars[*index]
+            tmp_buf
         )),
     )
     .add_ctx("Unable to parse given stream as a number, or local_date_time, local_time or local_date, even though it looks like one.")
     .add_ctx(format!("Line number: {line_number}")))
 }
 
-fn is_end_of_value(chars: &[String], index: &mut usize) -> bool {
+fn is_end_of_number_value(chars: &[String], index: &mut usize, line_number: &mut usize) -> bool {
     if chars.len() <= *index {
         true
     } else {
-        is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]).0
-            || &chars[*index] == "]"
-            || &chars[*index] == "}"
-            || &chars[*index] == ","
+        if &chars[*index] == " "
+            && (&chars[index.saturating_add(1)] != " " || &chars[index.saturating_add(1)] != "\n")
+        {
+            return false;
+        }
+        if is_whitespace_or_comment(&chars[*index]) {
+            skip_whitespace_or_comments(chars, index, line_number);
+            *index = index.saturating_sub(1);
+            return true;
+        }
+        &chars[*index] == "]" || &chars[*index] == "}" || &chars[*index] == ","
     }
 }
 
@@ -1096,13 +1157,6 @@ fn skip_whitespace_or_comments(chars: &[String], index: &mut usize, skip_newline
             in_comment = false;
             continue;
         }
-        let (is_newline, skip, skip_lines) =
-            is_newline(&chars[*index], &chars[index.saturating_add(1)]);
-        *skip_newlines = skip_newlines.saturating_add(skip_lines);
-        if is_newline {
-            *index = index.saturating_add(skip);
-            continue;
-        }
         let (is_whitespace, skip, skip_lines) =
             is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
         *skip_newlines = skip_newlines.saturating_add(skip_lines);
@@ -1151,9 +1205,13 @@ fn is_toml_whitespace(s: &str, next_char: &str) -> (bool, usize, usize) {
 /// - `(is_newline, skip, lines)` -> is_newline: bool, skip (in bytes): usize, lines (0-2 if double `\n`): usize
 fn is_newline(s: &str, next_char: &str) -> (bool, usize, usize) {
     if (s == "\r" || s == "\n") && next_char == "\n" {
-        (true, 2, 1)
+        if s == "\n" {
+            (true, 2, 2)
+        } else {
+            (true, 2, 1)
+        }
     } else if s == "\n" {
-        (true, 2, 2)
+        (true, 1, 1)
     } else {
         (false, 0, 0)
     }

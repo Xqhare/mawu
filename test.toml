@@ -16,7 +16,7 @@ bare_key = "value"
 'quoted "value"' = "value"
 table.key = "value" # Can be used to define a table
 table.another = "value"
-"table".'yet."another" key' = "value"
+"table".'yet."another" key' = "a value"
 
 [dotted-keys] # Example of defining a table
 name = "Orange"
@@ -62,7 +62,7 @@ winpath2 = '\\ServerX\admin$\system32\'
 quoted   = 'Tom "Dubs" Preston-Werner'
 regex    = '<\i\c*\s*>'
 
-more = "\rtext\ffilee\b"
+more = "\rtext\ffile\be"
 
 [integers]
 standard = 100
@@ -221,5 +221,7 @@ z = 1
 # [x.y] don't
 # [x.y.z] need these
 [x.y.z.w] # for this to work
+key = 2
 
 [x] # defining a super-table afterward is ok
+super-table-key = true
