@@ -12,35 +12,44 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
             TomlParseError::UnexpectedEndOfFile,
         ));
     }
+    toml_lexer_inner(chars, &mut index, line_number, false)
+}
+
+fn toml_lexer_inner(
+    chars: &[String],
+    index: &mut usize,
+    line_number: &mut usize,
+    is_table_body: bool,
+) -> Result<XffValue, NemesisError> {
     let mut out = Object::new();
-    while &index < &chars.len()
-        && let Some(char) = chars.get(index)
+    while *index < chars.len()
+        && let Some(char) = chars.get(*index)
     {
-        if index < chars.len() - 1 {
-            break;
-        }
         if is_whitespace_or_comment(char) {
-            skip_whitespace_or_comments(&chars, &mut index, line_number);
+            skip_whitespace_or_comments(chars, index, line_number);
             continue;
         }
         if char == "[" {
-            index = index.saturating_add(1);
+            if is_table_body {
+                break;
+            }
+            *index = index.saturating_add(1);
             let is_array_of_tables = {
-                if &chars[index] == "[" {
-                    index = index.saturating_add(1);
+                if &chars[*index] == "[" {
+                    *index = index.saturating_add(1);
                     true
                 } else {
                     false
                 }
             };
             let table_keys =
-                parse_keys(&chars, &mut index, *line_number).add_ctx("Caller: toml_lexer")?;
-            if chars[index] != "]" {
+                parse_keys(chars, index, *line_number).add_ctx("Caller: toml_lexer")?;
+            if &chars[*index] != "]" {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
                     TomlParseError::UnexpectedCharacter(format!(
                         "Expected ']' to close table name, but got: '{}'",
-                        chars[index]
+                        chars[*index]
                     )),
                 )
                 .add_ctx(format!(
@@ -48,28 +57,19 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 ))
                 .add_ctx(format!("Line number: {line_number}")));
             }
-            index = {
+            *index = {
                 if is_array_of_tables {
                     index.saturating_add(2)
                 } else {
                     index.saturating_add(1)
                 }
             };
-            if is_whitespace_or_comment(&chars[index]) {
-                skip_whitespace_or_comments(&chars, &mut index, line_number);
+            if *index < chars.len() && is_whitespace_or_comment(&chars[*index]) {
+                skip_whitespace_or_comments(chars, index, line_number);
             }
-            let value = toml_lexer(&chars[index..], line_number)
+            let value = toml_lexer_inner(chars, index, line_number, true)
                 .add_ctx("Inside table")
                 .add_ctx("Caller: toml_lexer")?;
-            if !is_end_table_marker(chars, index) {
-                return Err(NemesisError::new(
-                    "mawu::lexers::toml_lexer",
-                    TomlParseError::ExpectedEndOfObject,
-                )
-                .add_ctx(format!("Line number: {line_number}")));
-            } else {
-                index = index.saturating_add(1);
-            }
             if table_keys.is_empty() {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -81,30 +81,47 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
             let last_key_idx = table_keys.len() - 1;
             for (i, key) in table_keys.iter().enumerate() {
                 if i == last_key_idx {
-                    if current.get(key).is_some() && !is_array_of_tables {
-                        return Err(NemesisError::new(
-                            "mawu::lexers::toml_lexer",
-                            TomlParseError::KeyAlreadyDefined,
-                        )
-                        .add_ctx(format!("Line number: {line_number}")));
-                    } else if current.get(key).is_some() && is_array_of_tables {
-                        current
-                            .get_mut(key)
-                            .and_then(|v| v.as_array_mut())
-                            .ok_or_else(|| {
-                                NemesisError::new(
+                    if let Some(existing_val) = current.get_mut(key) {
+                        if !is_array_of_tables {
+                            if let (Some(existing_obj), Some(new_obj)) =
+                                (existing_val.as_object_mut(), value.as_object())
+                            {
+                                for (k, v) in new_obj.iter() {
+                                    if existing_obj.contains_key(k) {
+                                        return Err(NemesisError::new(
+                                            "mawu::lexers::toml_lexer",
+                                            TomlParseError::KeyAlreadyDefined,
+                                        )
+                                        .add_ctx(format!("Line number: {line_number}")));
+                                    }
+                                    existing_obj.insert(k.clone(), v.clone());
+                                }
+                            } else {
+                                return Err(NemesisError::new(
                                     "mawu::lexers::toml_lexer",
                                     TomlParseError::KeyAlreadyDefined,
                                 )
-                                .add_ctx(format!("Line number: {line_number}"))
-                            })?
-                            .push(value.clone());
-                        break;
-                    }
-                    if is_array_of_tables {
-                        current.insert(key.clone(), XffValue::Array(Array::from(vec![value])));
+                                .add_ctx(format!("Line number: {line_number}")));
+                            }
+                        } else {
+                            current
+                                .get_mut(key)
+                                .and_then(|v| v.as_array_mut())
+                                .ok_or_else(|| {
+                                    NemesisError::new(
+                                        "mawu::lexers::toml_lexer",
+                                        TomlParseError::KeyAlreadyDefined,
+                                    )
+                                    .add_ctx(format!("Line number: {line_number}"))
+                                })?
+                                .push(value.clone());
+                        }
                     } else {
-                        current.insert(key.clone(), value);
+                        if is_array_of_tables {
+                            current.insert(key.clone(), XffValue::Array(Array::from(vec![value])));
+                        } else {
+                            current.insert(key.clone(), value);
+                        }
                     }
                     break;
                 } else {
@@ -123,8 +140,7 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 }
             }
         } else {
-            let keys =
-                parse_keys(&chars, &mut index, *line_number).add_ctx("Caller: toml_lexer")?;
+            let keys = parse_keys(chars, index, *line_number).add_ctx("Caller: toml_lexer")?;
             if keys.is_empty() {
                 return Err(NemesisError::new(
                     "mawu::lexers::toml_lexer",
@@ -132,7 +148,7 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
                 )
                 .add_ctx(format!("Line number: {line_number}")));
             }
-            let value = parse_toml_value(&chars, &mut index, line_number, false)
+            let value = parse_toml_value(chars, index, line_number, false)
                 .add_ctx("Inside general key value")
                 .add_ctx("Caller: toml_lexer")?;
             let last_key_idx = keys.len() - 1;
@@ -166,35 +182,6 @@ pub fn toml_lexer(chars: &[String], line_number: &mut usize) -> Result<XffValue,
         }
     }
     Ok(out.into())
-}
-
-/// Returns true if the character is the end of a table
-///
-/// # Note
-/// ```toml
-/// [table]
-/// key = "value"
-///
-/// key2 = "value2"
-///
-/// [table2]
-/// ...
-/// ```
-/// Everything after the `]` of `[table]` is part of `table`, up to the next `[` of `[table2]` OR the end of the file
-fn is_end_table_marker(chars: &[String], index: usize) -> bool {
-    if index >= chars.len() {
-        true
-    } else if chars[index] == "]" {
-        true
-    } else {
-        if index.saturating_add(1) == chars.len() {
-            true
-        } else if chars[index.saturating_add(1)] == "[" {
-            true
-        } else {
-            false
-        }
-    }
 }
 
 fn handle_value_equals_sign(
@@ -1127,7 +1114,7 @@ fn is_whitespace_or_comment(s: &str) -> bool {
 }
 
 fn skip_whitespace_only(chars: &[String], index: &mut usize) {
-    while index.saturating_add(1) < chars.len() {
+    while *index < chars.len() {
         if &chars[*index] == "\t" || &chars[*index] == " " {
             *index = index.saturating_add(1);
         } else {
@@ -1139,33 +1126,28 @@ fn skip_whitespace_only(chars: &[String], index: &mut usize) {
 /// Skips whitespace and comments, updating the index
 fn skip_whitespace_or_comments(chars: &[String], index: &mut usize, skip_newlines: &mut usize) {
     let mut in_comment = false;
-    while index.saturating_add(1) < chars.len() {
+    while *index < chars.len() {
         if in_comment {
-            while index.saturating_add(1) < chars.len() {
-                if &chars[index.saturating_add(1)] == "\n" {
-                    if &chars[index.saturating_add(2)] == "\n" {
-                        *index = index.saturating_add(3);
-                        *skip_newlines = skip_newlines.saturating_add(2);
-                    } else {
-                        *index = index.saturating_add(2);
-                        *skip_newlines = skip_newlines.saturating_add(1);
-                    }
+            while *index < chars.len() {
+                if &chars[*index] == "\n" {
+                    in_comment = false;
                     break;
                 }
                 *index = index.saturating_add(1);
             }
-            in_comment = false;
             continue;
         }
-        let (is_whitespace, skip, skip_lines) =
-            is_toml_whitespace(&chars[*index], &chars[index.saturating_add(1)]);
+        let next_char = chars
+            .get(index.saturating_add(1))
+            .map(|s| s.as_str())
+            .unwrap_or("");
+        let (is_whitespace, skip, skip_lines) = is_toml_whitespace(&chars[*index], next_char);
         *skip_newlines = skip_newlines.saturating_add(skip_lines);
         if is_whitespace {
             *index = index.saturating_add(skip);
-        } else if &chars[*index] == "#" && !in_comment {
+        } else if &chars[*index] == "#" {
             in_comment = true;
             *index = index.saturating_add(1);
-            continue;
         } else {
             break;
         }

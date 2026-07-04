@@ -1,0 +1,12 @@
+boolean = true
+integer = 42
+float = 3.1415
+string = "Hello, world!"
+
+array = [ "one", "two", "three", 1, 2, 3 ]
+
+[table]
+key = "value"
+
+[empty_table]
+
