@@ -90,19 +90,19 @@ oct2 = 0o755 # useful for Unix file permissions
 # binary with prefix `0b`
 bin1 = 0b11010110
 
-[[Infinity]]
+[integers.inf]
 # infinity
 sf1 = inf  # positive infinity
 sf2 = +inf # positive infinity
 sf3 = -inf # negative infinity
 
-[[NaN]]
+[integers.nan]
 # not a number
 sf4 = nan  # actual sNaN/qNaN encoding is implementation-specific
 sf5 = +nan # same as `nan`
 sf6 = -nan # valid, actual encoding is implementation-specific
 
-[floats]
+[integers.floats]
 fractional = 100.00
 exponent = 1e3
 combination = 1.001e3
@@ -121,7 +121,7 @@ flt6 = -2E-2
 flt7 = 6.626e-34
 flt8 = 224_617.445_991_228
 
-[offset-datetimes] # RFC 3339
+[datetimes.offset-datetimes] # RFC 3339
 example-1 = 2023-09-03T02:11:01Z
 example-2 = 2023-09-03T02:11:02-01:00
 example-3 = 2023-09-03T02:11:03.1234-01:00
@@ -134,7 +134,7 @@ odt5 = 1979-05-27 07:32:00Z
 odt6 = 1979-05-27 07:32Z
 odt7 = 1979-05-27 07:32-07:00
 
-[other-datetimes]
+[datetimes.other-datetimes]
 # RFC 3339 without the timezone.
 local-datetime = 2023-09-03T02:10:00.987
 # RFC 3339 without the time.
