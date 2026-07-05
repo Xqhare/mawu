@@ -392,7 +392,6 @@ fn parse_toml_array(
             *index = index.saturating_add(1);
             break;
         }
-        println!("ARY Char at index: {}", chars[*index]);
         array.push(
             parse_toml_value(chars, index, line_number, true)
                 .add_ctx("Could not parse array value; Caller: parse_toml_value")?,
@@ -544,34 +543,38 @@ fn handle_escaped_sequences(
     tmp_buf: &mut String,
 ) -> Result<(), NemesisError> {
     if index.saturating_add(1) < chars.len() && is_single_escaped_char(chars, index) {
+        if &chars[index.saturating_add(1)] == "t" {
+            tmp_buf.push_str("\t");
+        } else {
+            tmp_buf.push_str(&chars[index.saturating_add(1)]);
+        }
         *index = index.saturating_add(2);
-        tmp_buf.push_str(&chars[*index]);
-        tmp_buf.push_str(&chars[index.saturating_add(1)]);
     } else if &chars[*index] == "\\" && index.saturating_add(1) < chars.len() {
         match chars[index.saturating_add(1)].as_str() {
             "x" => {
                 if index.saturating_add(3) < chars.len() && is_hex_digit_range(chars, index, 2) {
                     // U+00xx
-                    let mut u8: [u8; 2] = [0; 2];
-                    let hex = format!(
-                        "{}{}",
-                        chars[index.saturating_add(2)],
-                        chars[index.saturating_add(3)]
-                    );
-                    match u8::from_str_radix(&hex, 16) {
-                        Ok(hex) => u8[1] = hex,
-                        Err(e) => {
-                            return Err(NemesisError::new(
-                                "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
-                                TomlParseError::UnexpectedCharacter(format!(
-                                    "Expected an escaped unicode identifier, but got: '\\x{}{}'",
-                                    chars[index.saturating_add(2)],
-                                    chars[index.saturating_add(3)]
-                                ))
-                            ).add_ctx(format!("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits - {}", e)).add_ctx(e.to_string()))
+                    let hex = {
+                        let inner = format!(
+                            "{}{}",
+                            chars[index.saturating_add(2)],
+                            chars[index.saturating_add(3)]
+                        );
+                        match u8::from_str_radix(&inner, 16) {
+                            Ok(hex) => hex,
+                            Err(e) => {
+                                return Err(NemesisError::new(
+                                    "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                                    TomlParseError::UnexpectedCharacter(format!(
+                                        "Expected an escaped unicode identifier, but got: '\\x{}{}'",
+                                        chars[index.saturating_add(2)],
+                                        chars[index.saturating_add(3)]
+                                    ))
+                                ).add_ctx(format!("Passed in invalid unicode escape sequence - Ensure it starts with '\\x' and is followed by two hex digits - {}", e)).add_ctx(e.to_string()))
+                            }
                         }
-                    }
-                    tmp_buf.push_str(&String::from_utf8_lossy(&u8));
+                    };
+                    tmp_buf.push_str(&String::from_utf16_lossy(&[hex as u16]));
                     *index = index.saturating_add(4);
                 } else {
                     return Err(NemesisError::new(
@@ -622,7 +625,8 @@ fn handle_escaped_sequences(
                             ))
                         ).add_ctx("Passed in invalid unicode escape sequence - Ensure it starts with '\\u' and is followed by four hex digits"));
                     }
-                    tmp_buf.push_str(&String::from_utf8_lossy(&u8));
+                    let combined: u16 = ((u8[0] as u16) << 8) | (u8[1] as u16);
+                    tmp_buf.push_str(&String::from_utf16_lossy(&[combined]));
                     *index = index.saturating_add(6);
                 } else {
                     return Err(NemesisError::new(
@@ -728,8 +732,30 @@ fn handle_escaped_sequences(
                             )),
                         ));
                     }
-                    tmp_buf.push_str(&String::from_utf8_lossy(&u8));
-                    *index = index.saturating_add(10);
+                    let combined: u32 = ((u8[0] as u32) << 24)
+                        | ((u8[1] as u32) << 16)
+                        | ((u8[2] as u32) << 8)
+                        | (u8[3] as u32);
+                    if let Some(char) = char::from_u32(combined) {
+                        tmp_buf.push(char);
+                        *index = index.saturating_add(10);
+                    } else {
+                        return Err(NemesisError::new(
+                            "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",
+                            TomlParseError::UnexpectedCharacter(format!(
+                                "Expected an escaped unicode identifier, but got: '\\U{}{}{}{}{}{}{}{}{}'",
+                                chars[index.saturating_add(2)],
+                                chars[index.saturating_add(3)],
+                                chars[index.saturating_add(4)],
+                                chars[index.saturating_add(5)],
+                                chars[index.saturating_add(6)],
+                                chars[index.saturating_add(7)],
+                                chars[index.saturating_add(8)],
+                                chars[index.saturating_add(9)],
+                                chars[index.saturating_add(10)]
+                            )),
+                        ));
+                    }
                 } else {
                     return Err(NemesisError::new(
                                     "mawu::lexers::toml_lexer::parse_toml_string::handle_escaped_sequences",

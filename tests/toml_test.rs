@@ -121,6 +121,10 @@ fn full_example_toml_parse() {
         strings.get("str").unwrap().as_string().unwrap(),
         "I'm a string. \"You can quote me\". Name\tJosé\nLocation\tSF."
     );
+    assert_eq!(
+        strings.get("alt_str").unwrap().as_string().unwrap(),
+        "I'm a string. \"You can quote me\". Name\tJosé\nLocation\tSF."
+    );
 }
 // [strings] # Example of defining a table
 // basic = "This is a basic string"
