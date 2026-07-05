@@ -12,6 +12,7 @@ mod serializers;
 mod utils;
 
 pub use athena::XffValue;
+pub use mawu_value::MawuValue;
 
 /// Reads CSV and JSON files into `MawuValue` or `XffValue`
 pub mod read {
@@ -84,7 +85,7 @@ pub mod read {
 #[cfg(feature = "csv")]
 use crate::serializers::csv_serializer;
 use crate::{
-    mawu_value::MawuValue, serializers::json_serializer, utils::file_handling::write_file,
+    serializers::json_serializer, utils::file_handling::write_file,
 };
 use nemesis::NemesisError;
 use std::path::Path;

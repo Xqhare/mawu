@@ -462,8 +462,12 @@ fn parse_toml_string(
                 }
             }
             StringType::Double => {
+                let start_idx = *index;
                 handle_escaped_sequences(chars, index, &mut tmp_buf)
                     .add_ctx("Inside a Double Quoted String; Caller: parse_toml_string")?;
+                if *index > start_idx {
+                    continue;
+                }
                 if &chars[*index] == "\"" {
                     *index = index.saturating_add(1);
                     break;
@@ -473,7 +477,11 @@ fn parse_toml_string(
                 }
             }
             StringType::TripleSingle => {
+                let start_idx = *index;
                 handle_multiline_cont(chars, index, line_number, &mut tmp_buf);
+                if *index > start_idx {
+                    continue;
+                }
                 if &chars[*index] == "'"
                     && index.saturating_add(4) < chars.len()
                     && &chars[index.saturating_add(1)] == "'"
@@ -492,9 +500,13 @@ fn parse_toml_string(
                 }
             }
             StringType::TripleDouble => {
+                let start_idx = *index;
                 handle_multiline_cont(chars, index, line_number, &mut tmp_buf);
                 handle_escaped_sequences(chars, index, &mut tmp_buf)
                     .add_ctx("Inside a Triple Double Quoted String; Caller: parse_toml_string")?;
+                if *index > start_idx {
+                    continue;
+                }
                 if &chars[*index] == "\""
                     && index.saturating_add(3) < chars.len()
                     && &chars[index.saturating_add(1)] == "\""
@@ -543,10 +555,16 @@ fn handle_escaped_sequences(
     tmp_buf: &mut String,
 ) -> Result<(), NemesisError> {
     if index.saturating_add(1) < chars.len() && is_single_escaped_char(chars, index) {
-        if &chars[index.saturating_add(1)] == "t" {
-            tmp_buf.push_str("\t");
-        } else {
-            tmp_buf.push_str(&chars[index.saturating_add(1)]);
+        match chars[index.saturating_add(1)].as_str() {
+            "b" => tmp_buf.push('\x08'),
+            "t" => tmp_buf.push('\t'),
+            "n" => tmp_buf.push('\n'),
+            "f" => tmp_buf.push('\x0c'),
+            "r" => tmp_buf.push('\r'),
+            "e" => tmp_buf.push('\x1b'),
+            "\"" => tmp_buf.push('"'),
+            "\\" => tmp_buf.push('\\'),
+            _ => tmp_buf.push_str(&chars[index.saturating_add(1)]),
         }
         *index = index.saturating_add(2);
     } else if &chars[*index] == "\\" && index.saturating_add(1) < chars.len() {

@@ -52,6 +52,7 @@ mawu = { git = "https://github.com/Xqhare/mawu" }
 ```rust
 use mawu::read::json;
 
+# std::fs::write("example.json", "{}").unwrap();
 let path_to_file = "example.json";
 let xff_value = json(path_to_file).unwrap();
 if xff_value.is_object() {
@@ -59,6 +60,7 @@ if xff_value.is_object() {
         println!("{}: {}", key, value);
     }
 }
+# std::fs::remove_file("example.json").unwrap();
 ```
 
 ### Reading CSV
@@ -68,8 +70,11 @@ CSV support is gated behind the `csv` feature flag.
 CSV data is returned wrapped in a `MawuValue`.
 
 ```rust
+# #[cfg(feature = "csv")]
+# {
 use mawu::read::csv_headed;
 
+# std::fs::write("example.csv", "a,b\n1,2").unwrap();
 let path_to_file = "example.csv";
 let csv_value = csv_headed(path_to_file).unwrap();
 if csv_value.is_csv_object() {
@@ -79,6 +84,8 @@ if csv_value.is_csv_object() {
         }
     }
 }
+# std::fs::remove_file("example.csv").unwrap();
+# }
 ```
 
 ### Writing
@@ -94,8 +101,14 @@ let xff_val = XffValue::from(vec![1, 2, 3]);
 write("output.json", MawuContents::Json(xff_val)).unwrap();
 
 // Writing CSV
+# #[cfg(feature = "csv")]
+# {
 let csv_val = MawuValue::new_csv_array(); // ... fill your CSV data
 write("output.csv", MawuContents::Csv(csv_val)).unwrap();
+# }
+# std::fs::remove_file("output.json").unwrap();
+# #[cfg(feature = "csv")]
+# std::fs::remove_file("output.csv").unwrap();
 ```
 
 ## `MawuValue` vs `XffValue`
