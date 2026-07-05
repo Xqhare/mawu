@@ -78,7 +78,7 @@ TOML support is gated behind the `toml` feature flag.
 # {
 use mawu::read::toml;
 
-# std::fs::copy("example.toml", "data/toml/toml-test-data/example.toml").unwrap();
+# std::fs::write("example.toml", "key = \"value\"\n").unwrap();
 let path_to_file = "example.toml";
 let xff_value = toml(path_to_file).unwrap();
 if xff_value.is_object() {
