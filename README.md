@@ -1,8 +1,8 @@
 # `Mawu`
 
-A JSON and CSV serialization and deserialization library written in rust.
+A JSON, TOML and CSV serialization and deserialization library written in rust.
 
-`Mawu`, named after the ancient creator goddess `Mawu` in West African mythology, offers a JSON and CSV serialization and deserialization library implementing the rfc4180, rfc8259 and the ECMA-404 standard.
+`Mawu`, named after the ancient creator goddess `Mawu` in West African mythology, offers a JSON, TOML and CSV serialization and deserialization library implementing the rfc4180, rfc8259, TOML 1.1.0 and the ECMA-404 standard.
 
 `Mawu` is a zero dependency library and supports 64bit systems only.
 
@@ -14,13 +14,13 @@ You can learn more about that [here](https://blog.xqhare.net/posts/why_solve_pro
 - _**No dependencies**_: All code is written by me or part of std.
 - Simple
 - Type aware
-- Supports both CSV and JSON
+- Supports CSV, JSON and TOML
 - Reading and writing
 - Write pretty with custom spacing
 - Supports CSV files with or without header
 - Supports missing or not provided values
 - Fully documented
-- Tries to stay as close to the rfc4180, rfc8259 and ECMA-404 standard as possible for maximum interoperability
+- Tries to stay as close to the rfc4180, rfc8259, TOML 1.1.0 and ECMA-404 standard as possible for maximum interoperability
 - Actually written by a human
 
 ## Roadmap
@@ -38,6 +38,9 @@ Learn more about my naming scheme [here](https://blog.xqhare.net/posts/explainin
 
 ## Using `Mawu`
 
+> [!important]
+> Both TOML and CSV support are gated behind the `toml` and `csv` feature flags respectively.
+
 Start by adding this repository to your `Cargo.toml`.
 
 ```toml
@@ -47,7 +50,7 @@ mawu = { git = "https://github.com/Xqhare/mawu" }
 
 ### Reading JSON
 
-`Mawu` now returns `athena::XffValue` directly when parsing JSON.
+`Mawu` returns `athena::XffValue` directly when parsing JSON.
 
 ```rust
 use mawu::read::json;
@@ -61,6 +64,30 @@ if xff_value.is_object() {
     }
 }
 # std::fs::remove_file("example.json").unwrap();
+```
+### Reading TOML
+
+> [!important]
+> Because my `Thoth` library does not support emoji, neither does `Mawu`.
+
+TOML support is gated behind the `toml` feature flag.
+
+`Mawu` returns `athena::XffValue` directly when parsing TOML.
+```rust
+# #[cfg(feature = "toml")]
+# {
+use mawu::read::toml;
+
+# std::fs::copy("example.toml", "data/toml/toml-test-data/example.toml").unwrap();
+let path_to_file = "example.toml";
+let xff_value = toml(path_to_file).unwrap();
+if xff_value.is_object() {
+    for (key, value) in xff_value.into_object().unwrap().iter() {
+        println!("{}: {}", key, value);
+    }
+}
+# std::fs::remove_file("example.toml").unwrap();
+# }
 ```
 
 ### Reading CSV
