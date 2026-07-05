@@ -75,10 +75,13 @@ pub mod read {
     #[cfg(feature = "toml")]
     pub fn toml<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
         let mut line_number = 1;
-        toml_lexer::toml_lexer(
-            &file_handling::read_file_unicode_segment(path)?,
-            &mut line_number,
-        )
+        let mut chars = file_handling::read_file_unicode_segment(path)?;
+        if let Some(last) = chars.last() {
+            if last != "\n" && last != "\r" {
+                chars.push("\n".to_string());
+            }
+        }
+        toml_lexer::toml_lexer(&chars, &mut line_number)
     }
 }
 

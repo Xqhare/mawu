@@ -7,11 +7,14 @@ use mawu::read::toml;
 
 #[cfg(feature = "toml")]
 #[test]
-fn failing() {
+fn no_trailing_newline() {
     let path = "data/toml/toml-test-data/example.toml";
     let result = toml(path);
-    println!("{:?}", result);
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    // The below is the same file, only without the trailing new line
+    std::fs::write("example.toml", "key = \"value\"").unwrap();
+    let result = toml("example.toml");
+    assert!(result.is_ok());
 }
 
 #[cfg(feature = "toml")]
