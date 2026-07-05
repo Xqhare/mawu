@@ -8,3 +8,4 @@
     - [c] YAML :: DIFFICULT, probably not worth it
 - [x] (F) Feature rework :: lock each file type behind a feature
     * Except `JSON` as standard, maybe provide a `no_json` feature (I know features should only be additive but fuck it).
+- [ ] Toml Emoji support :: Update README when `Thoth` supports it; dep=thoth:"Add emoji support"
