@@ -7,6 +7,15 @@ use mawu::read::toml;
 
 #[cfg(feature = "toml")]
 #[test]
+fn failing() {
+    let path = "data/toml/toml-test-data/example.toml";
+    let result = toml(path);
+    println!("{:?}", result);
+    assert!(result.is_err());
+}
+
+#[cfg(feature = "toml")]
+#[test]
 fn full_example_toml_parse() {
     let path = "data/toml/toml-test-data/test.toml";
     let result = toml(path);
@@ -1129,19 +1138,22 @@ fn toml_serialization_roundtrip() {
 
     // 1. Build a complex nested structure
     let mut root = Object::new();
-    root.insert("title".to_string(), XffValue::from("TOML \"Special\" \n \\ Example"));
+    root.insert(
+        "title".to_string(),
+        XffValue::from("TOML \"Special\" \n \\ Example"),
+    );
     root.insert("boolean".to_string(), XffValue::from(true));
     root.insert("number".to_string(), XffValue::from(42));
-    
+
     // Nested table (Object)
     let mut owner = Object::new();
     owner.insert("name".to_string(), XffValue::from("Tom"));
-    
+
     let mut address = Object::new();
     address.insert("city".to_string(), XffValue::from("San Francisco"));
     address.insert("street".to_string(), XffValue::from("123 Main St"));
     owner.insert("address".to_string(), XffValue::Object(address));
-    
+
     root.insert("owner".to_string(), XffValue::Object(owner));
 
     // Table Array
@@ -1149,7 +1161,7 @@ fn toml_serialization_roundtrip() {
     phones.columns = vec!["number".to_string()];
     phones.add_row(vec![XffValue::from("111")]).unwrap();
     phones.add_row(vec![XffValue::from("222")]).unwrap();
-    
+
     root.insert("phones".to_string(), XffValue::Table(phones));
 
     // Key with spaces and dots
@@ -1165,7 +1177,7 @@ fn toml_serialization_roundtrip() {
 
     // 3. Read it back
     let parsed = toml(test_file).expect("Failed to parse TOML back");
-    
+
     // Cleanup
     let _ = std::fs::remove_file(test_file);
 
@@ -1177,28 +1189,60 @@ fn toml_serialization_roundtrip() {
         parsed_obj.get("title").unwrap().as_string().unwrap(),
         "TOML \"Special\" \n \\ Example"
     );
-    assert_eq!(parsed_obj.get("boolean").unwrap().as_boolean().unwrap(), &true);
     assert_eq!(
-        parsed_obj.get("number").unwrap().as_number().unwrap().into_usize().unwrap(),
+        parsed_obj.get("boolean").unwrap().as_boolean().unwrap(),
+        &true
+    );
+    assert_eq!(
+        parsed_obj
+            .get("number")
+            .unwrap()
+            .as_number()
+            .unwrap()
+            .into_usize()
+            .unwrap(),
         42
     );
 
     // Verify dotted key/spaced key
-    assert_eq!(parsed_obj.get("key.with.dots").unwrap().as_string().unwrap(), "dots");
-    assert_eq!(parsed_obj.get("key with spaces").unwrap().as_string().unwrap(), "spaces");
+    assert_eq!(
+        parsed_obj
+            .get("key.with.dots")
+            .unwrap()
+            .as_string()
+            .unwrap(),
+        "dots"
+    );
+    assert_eq!(
+        parsed_obj
+            .get("key with spaces")
+            .unwrap()
+            .as_string()
+            .unwrap(),
+        "spaces"
+    );
 
     // Verify nested structure
     let parsed_owner = parsed_obj.get("owner").unwrap().as_object().unwrap();
-    assert_eq!(parsed_owner.get("name").unwrap().as_string().unwrap(), "Tom");
-    
+    assert_eq!(
+        parsed_owner.get("name").unwrap().as_string().unwrap(),
+        "Tom"
+    );
+
     let parsed_address = parsed_owner.get("address").unwrap().as_object().unwrap();
-    assert_eq!(parsed_address.get("city").unwrap().as_string().unwrap(), "San Francisco");
-    assert_eq!(parsed_address.get("street").unwrap().as_string().unwrap(), "123 Main St");
+    assert_eq!(
+        parsed_address.get("city").unwrap().as_string().unwrap(),
+        "San Francisco"
+    );
+    assert_eq!(
+        parsed_address.get("street").unwrap().as_string().unwrap(),
+        "123 Main St"
+    );
 
     // Verify array of tables
     let parsed_phones = parsed_obj.get("phones").unwrap().as_array().unwrap();
     assert_eq!(parsed_phones.len(), 2);
-    
+
     let phone1 = parsed_phones.get(0).unwrap().as_object().unwrap();
     assert_eq!(phone1.get("number").unwrap().as_string().unwrap(), "111");
 
@@ -1216,9 +1260,12 @@ fn toml_null_error() {
     root.insert("key".to_string(), XffValue::Null);
 
     let test_file = "data/toml/toml-test-data/temp_null.toml";
-    let res = write_pretty(test_file, mawu::MawuContents::Toml(XffValue::Object(root)), 4);
+    let res = write_pretty(
+        test_file,
+        mawu::MawuContents::Toml(XffValue::Object(root)),
+        4,
+    );
     let _ = std::fs::remove_file(test_file);
 
     assert!(res.is_err());
 }
-
