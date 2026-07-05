@@ -1,7 +1,11 @@
+#[cfg(feature = "toml")]
 use athena::{Array, LocalDate, LocalDateTime, LocalTime};
+#[cfg(feature = "toml")]
 use horae::Utc;
+#[cfg(feature = "toml")]
 use mawu::read::toml;
 
+#[cfg(feature = "toml")]
 #[test]
 fn full_example_toml_parse() {
     let path = "data/toml/toml-test-data/test.toml";
@@ -1061,6 +1065,7 @@ fn full_example_toml_parse() {
     );
 }
 
+#[cfg(feature = "toml")]
 #[test]
 fn simple_toml() {
     let path = "data/toml/toml-test-data/simple.toml";

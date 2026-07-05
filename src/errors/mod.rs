@@ -6,6 +6,7 @@ pub mod csv_error;
 /// Module holding all possible json errors
 pub mod json_error;
 /// Module holding all possible toml errors
+#[cfg(feature = "toml")]
 pub mod toml_error;
 
 pub type Result<T> = result::Result<T, nemesis::NemesisError>;

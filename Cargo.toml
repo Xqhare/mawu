@@ -6,6 +6,7 @@ edition = "2024"
 
 [features]
 csv = []
+toml = []
 
 [dependencies]
 athena = { git = "https://github.com/Xqhare/athena"}

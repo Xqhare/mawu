@@ -19,12 +19,11 @@ pub mod read {
     use athena::XffValue;
     use std::path::Path;
 
+    #[cfg(feature = "toml")]
+    use crate::lexers::toml_lexer;
     #[cfg(feature = "csv")]
     use crate::{lexers::csv_lexer, mawu_value::MawuValue};
-    use crate::{
-        lexers::{json_lexer, toml_lexer},
-        utils::file_handling,
-    };
+    use crate::{lexers::json_lexer, utils::file_handling};
     use nemesis::NemesisError;
 
     /// Reads a headed CSV file and returns a `MawuValue::CSVObject` or an error if the file could not be read or parsed.
@@ -73,6 +72,7 @@ pub mod read {
     ///
     /// # Errors
     /// Only returns `NemesisError`'s
+    #[cfg(feature = "toml")]
     pub fn toml<T: AsRef<Path>>(path: T) -> Result<XffValue, NemesisError> {
         let mut line_number = 1;
         toml_lexer::toml_lexer(
@@ -84,14 +84,16 @@ pub mod read {
 
 #[cfg(feature = "csv")]
 use crate::serializers::csv_serializer;
-use crate::{
-    serializers::json_serializer, utils::file_handling::write_file,
-};
+#[cfg(feature = "toml")]
+use crate::serializers::toml_serializer;
+use crate::{serializers::json_serializer, utils::file_handling::write_file};
 use nemesis::NemesisError;
 use std::path::Path;
 
 /// Enum to unify JSON and CSV data for writing
 pub enum MawuContents {
+    /// TOML data represented by `XffValue`
+    Toml(XffValue),
     /// JSON data represented by `XffValue`
     Json(XffValue),
     /// CSV data represented by `MawuValue`
@@ -130,7 +132,7 @@ pub fn write<T: AsRef<Path>, C: Into<MawuContents>>(
 /// * `path` - The path to the file, relative or absolute
 /// * `contents` - The contents of the file
 /// * `space` - The number of spaces to use for indentation
-#[cfg(feature = "csv")]
+#[cfg(all(feature = "csv", not(feature = "toml")))]
 pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
     path: T,
     contents: C,
@@ -159,6 +161,10 @@ pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
             csv_serializer::serialize_csv_unheaded(MawuValue::CSVArray(v), spaces)?,
         ),
         MawuContents::Json(v) => write_file(path, json_serializer::serialize_json(v, spaces, 0)?),
+        MawuContents::Toml(_) => Err(NemesisError::new(
+            "mawu::write_pretty",
+            "TOML serialization not enabled; Enable the 'toml' feature.",
+        )),
     }
 }
 
@@ -169,7 +175,49 @@ pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
 /// * `path` - The path to the file, relative or absolute
 /// * `contents` - The contents of the file
 /// * `space` - The number of spaces to use for indentation
-#[cfg(not(feature = "csv"))]
+#[cfg(all(feature = "csv", feature = "toml"))]
+pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
+    path: T,
+    contents: C,
+    spaces: u8,
+) -> Result<(), NemesisError> {
+    let contents = contents.into();
+    match contents {
+        MawuContents::Csv(MawuValue::CSVObject(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::CSVObject(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::Object(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::Object(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::OrderedObject(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::OrderedObject(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::Table(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_headed(MawuValue::Table(v), spaces)?,
+        ),
+        MawuContents::Csv(MawuValue::CSVArray(v)) => write_file(
+            path,
+            csv_serializer::serialize_csv_unheaded(MawuValue::CSVArray(v), spaces)?,
+        ),
+        MawuContents::Json(v) => write_file(path, json_serializer::serialize_json(v, spaces, 0)?),
+        MawuContents::Toml(toml) => {
+            write_file(path, toml_serializer::serialize_toml(toml, spaces)?)
+        }
+    }
+}
+
+/// Writes a pretty printed file with the given contents.
+/// Writes a CSV-file if the contents are `MawuContents::Csv` and a JSON-file if the contents are `MawuContents::Json`.
+///
+/// ## Arguments
+/// * `path` - The path to the file, relative or absolute
+/// * `contents` - The contents of the file
+/// * `space` - The number of spaces to use for indentation
+#[cfg(all(feature = "toml", not(feature = "csv")))]
 pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
     path: T,
     contents: C,
@@ -180,6 +228,36 @@ pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
         MawuContents::Csv(_) => Err(NemesisError::new(
             "mawu::write_pretty",
             "CSV serialization not enabled; Enable the 'csv' feature.",
+        )),
+        MawuContents::Json(v) => write_file(path, json_serializer::serialize_json(v, spaces, 0)?),
+        MawuContents::Toml(toml) => {
+            write_file(path, toml_serializer::serialize_toml(toml, spaces)?)
+        }
+    }
+}
+
+/// Writes a pretty printed file with the given contents.
+/// Writes a CSV-file if the contents are `MawuContents::Csv` and a JSON-file if the contents are `MawuContents::Json`.
+///
+/// ## Arguments
+/// * `path` - The path to the file, relative or absolute
+/// * `contents` - The contents of the file
+/// * `space` - The number of spaces to use for indentation
+#[cfg(all(not(feature = "csv"), not(feature = "toml")))]
+pub fn write_pretty<T: AsRef<Path>, C: Into<MawuContents>>(
+    path: T,
+    contents: C,
+    spaces: u8,
+) -> Result<(), NemesisError> {
+    let contents = contents.into();
+    match contents {
+        MawuContents::Csv(_) => Err(NemesisError::new(
+            "mawu::write_pretty",
+            "CSV serialization not enabled; Enable the 'csv' feature.",
+        )),
+        MawuContents::Toml(_) => Err(NemesisError::new(
+            "mawu::write_pretty",
+            "Toml serialization not enabled; Enable the 'toml' feature.",
         )),
         MawuContents::Json(v) => write_file(path, json_serializer::serialize_json(v, spaces, 0)?),
     }

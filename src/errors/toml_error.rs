@@ -36,11 +36,17 @@ pub enum TomlWriteError {
     NotTOML,
     /// Supplied value is not a TOML value
     NotTOMLType(String),
+    /// Supplied Value is not an Object
+    ParentMustBeObject,
 }
 
 impl fmt::Display for TomlWriteError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            TomlWriteError::ParentMustBeObject => write!(
+                f,
+                "Parent (`XffValue` passed into the function) must be an object"
+            ),
             TomlWriteError::NotTOML => write!(f, "Supplied value is not a TOML value"),
             TomlWriteError::NotTOMLType(ref s) => write!(f, "Not TOML type: {s}"),
         }
