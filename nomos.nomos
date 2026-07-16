@@ -3,7 +3,8 @@
     - [x] TOML :: Somewhere between `JSON` and `YAML`. No brainer.
         * Spec: https://toml.io/en/v1.1.0
         * Very useful (includes full example): https://www.anbowell.com/blog/the-developers-guide-to-toml/
-        - [x] No emoji support :: Because Thoth does not support it. Add to README    - [C] YAML :: DIFFICULT, probably not worth it
+        - [x] No emoji support :: Because Thoth does not support it. Add to README
+    - [C] YAML :: DIFFICULT, probably not worth it
 - [x] (2) Feature rework :: lock each file type behind a feature
     * Except `JSON` as standard, maybe provide a `no_json` feature (I know features should only be additive but fuck it).
 - [ ] (9) Toml Emoji support :: Update README when `Thoth` supports it; dep=thoth:"Add emoji support" 
