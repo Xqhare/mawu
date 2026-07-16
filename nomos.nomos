@@ -1,5 +1,6 @@
 - [x] (2) More file types :: 
-    * `XffValue` should be ready to support more file types already, it would make sense to keep them unified in one place.* Keep in mind: https://martin-ueding.de/posts/json-vs-yaml-vs-toml/ and https://www.anbowell.com/blog/an-in-depth-comparison-of-json-yaml-and-toml/
+    * `XffValue` should be ready to support more file types already, it would make sense to keep them unified in one place.
+    * Keep in mind: https://martin-ueding.de/posts/json-vs-yaml-vs-toml/ and https://www.anbowell.com/blog/an-in-depth-comparison-of-json-yaml-and-toml/
     - [x] TOML :: Somewhere between `JSON` and `YAML`. No brainer.
         * Spec: https://toml.io/en/v1.1.0
         * Very useful (includes full example): https://www.anbowell.com/blog/the-developers-guide-to-toml/
