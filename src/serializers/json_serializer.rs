@@ -131,7 +131,7 @@ pub fn serialize_json(
         XffValue::Table(t) => {
             let mut array = Vec::new();
             for row in &t.rows {
-                let mut row_map = std::collections::BTreeMap::new();
+                let mut row_map = std::collections::HashMap::new();
                 for (i, col_name) in t.columns.iter().enumerate() {
                     if let Some(val) = row.get(i) {
                         row_map.insert(col_name.clone(), val.clone());

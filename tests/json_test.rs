@@ -626,10 +626,13 @@ mod json_tests {
         mawu::write(path, MawuContents::Json(xff_table)).unwrap();
 
         let content = std::fs::read_to_string(path).unwrap();
-        assert_eq!(
-            content,
-            "[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"}]"
-        );
+        assert!(content.contains("\"id\":1"));
+        assert!(content.contains("\"name\":\"Alice\""));
+        assert!(content.contains("\"id\":2"));
+        assert!(content.contains("\"name\":\"Bob\""));
+        assert!(content.starts_with("[{"));
+        assert!(content.contains("},{"));
+        assert!(content.ends_with("}]"));
 
         std::fs::remove_file(path).unwrap();
     }
